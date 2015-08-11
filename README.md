@@ -66,6 +66,7 @@ wookiee-zookeeper {
   retry-sleep = 5s
   retry-count = 150
   base-path = "/discovery/clusters"
+
   message-processor {
     # How often the MessageProcessor should share it's subscription information
     share-interval = 1s
