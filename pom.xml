@@ -63,6 +63,12 @@
             <version>1.1-SNAPSHOT</version>
         </dependency>
         <dependency>
+            <groupId>com.typesafe.akka</groupId>
+            <artifactId>akka-testkit_2.11</artifactId>
+            <version>2.3.4</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>wookiee-test</artifactId>
             <version>1.1-SNAPSHOT</version>
