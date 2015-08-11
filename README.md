@@ -1,5 +1,7 @@
 # Wookiee - Component: Kafka
 
+[Main Wookiee Project](https://github.com/Webtrends/wookiee)
+
 For Configuration information see [Kafka Config](docs/config.md)
 
 The kafka component allows users to set up a Worker which can be replicated and consumes from a Kafka topic. It is also capable of coordinating multiple other Nodes (via Zookeeper) to share the load of topic consumption. In other words, this component allows one to create a horizontally scalable kafka consumer app with ease.
