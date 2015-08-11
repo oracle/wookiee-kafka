@@ -15,7 +15,6 @@
         <build.version>1.0.0</build.version>
         <release.type>SNAPSHOT</release.type>
         <build>${build.number}</build>
-        <scala.artifact.version>2.11</scala.artifact.version>
         <parent.dir>${project.basedir}/../..</parent.dir>
         <skipTests>true</skipTests>
     </properties>
@@ -86,7 +85,7 @@
         </dependency>
         <dependency>
             <groupId>org.scalatest</groupId>
-            <artifactId>scalatest_${scala.artifact.version}</artifactId>
+            <artifactId>scalatest_2.11</artifactId>
             <version>2.1.3</version>
         </dependency>
         <dependency>
@@ -96,7 +95,7 @@
         </dependency>
         <dependency>
             <groupId>org.apache.kafka</groupId>
-            <artifactId>kafka_${scala.artifact.version}</artifactId>
+            <artifactId>kafka_2.11</artifactId>
             <version>0.8.2.1</version>
         </dependency>
         <dependency>
