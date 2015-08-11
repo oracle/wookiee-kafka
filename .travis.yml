@@ -1,34 +1,30 @@
 language: scala
-
 scala:
 - 2.11.4
-
 jdk:
 - oraclejdk7
-
-sudo: false 
-
+sudo: false
 branches:
   only:
   - master
-  - /^[0-9].[0-9].[0-9]$/
-
+  - "/^[0-9].[0-9].[0-9]$/"
 cache:
   directories:
-  - $HOME/.m2
-
+  - "$HOME/.m2"
 before_script:
-- test $TRAVIS_PULL_REQUEST == "false" && git clone -b travis `git config --get remote.origin.url` target/travis || true
-
+- test $TRAVIS_PULL_REQUEST == "false" && git clone -b travis `git config --get remote.origin.url`
+  target/travis || true
 script:
 - echo "TRAVIS_TAG $TRAVIS_TAG"
-- test "$TRAVIS_TAG" != "" && mvn versions:set -DnewVersion=$TRAVIS_TAG deploy -q -P all -DskipTests=true --settings target/travis/settings.xml || test $TRAVIS_PULL_REQUEST == "false" && mvn deploy -q -P all -DskipTests=true --settings target/travis/settings.xml || mvn -q -P all test -B
-
+- test "$TRAVIS_TAG" != "" && mvn versions:set -DnewVersion=$TRAVIS_TAG deploy -q
+  -P all -DskipTests=true --settings target/travis/settings.xml || test $TRAVIS_PULL_REQUEST
+  == "false" && mvn deploy -q -P all -DskipTests=true --settings target/travis/settings.xml
+  || mvn -q -P all test -B
 after_success:
-- '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && mvn site-deploy -P all,github-site -Dgithub.global.oauth2Token=$GITHUB_TOKEN || true'
+- '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && mvn site-deploy -P all,github-site -Dgithub.global.oauth2Token=$GITHUB_TOKEN
+  || true'
 - '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && sbt ++2.11.4 coverageAggregate || true'
 - '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && sbt ++2.11.4 coveralls || true'
-
 env:
   global:
   - MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=256m"
@@ -37,3 +33,4 @@ env:
   - secure: UEwEEb3YXIgwofNBaaKBuqiyTNXOAqjfvJ+zPU6lUqJsoqPfemWL4Ikb7K8bA2domIgVAiMKmPm3FCAKFeeqm2QLRt0MQmqW6RUmKWFm2/12w9m3CFvTnBpDDdk8HUleXxs1FFZdflWYecBmoJqq8djO/wz7dJbPuPZkKU1NlLM=
   - secure: IP0Y5ARS9OfOP+RNFfBR7VwzQq9QSvFIAqsvXvyyxbKw8senacCyUa/rl2+naj7tIjuDyfUQGgMLuK8espx19ccZFN6UXNGS9izVjYbd7jKPviTZ4vCpqliz4FECux0tikWYV/AfwIf8hCKihdedl18/5kzU5tGz1JJQRP6T5ps=
   - secure: JnB8wDYEB7CzeNdAdTRrhX7TWS9yM/BNQxd4rF95pTXEhPyBAaYFMgHcauWfRurlbPPwDGIsuEvLQR+eYpp9xScJilgxKT6O1IIPVoZAbd6q+i2Qj4woh+++/M7opvbBlbyCBzlyVC9CZ0xDQo7rt+pxGjNnMYHG2SftcOkjlpU=
+  - secure: jWpfX7QJXunCStX9UU/R/IcHyeh9NtFuEKk/lcQaAE+7hnNiUjh77wnLuVMPa4MY/iaJLu0jqB/qC6qjH4WT1OwBQ9agKwnoijvsNUbgFNXc2Gm7UXFHq419gQGZ+ZLjOln7HPCjLDS0Si5SSlzKNNPB9RN9b/09Uff60WWzIyac9cQ5vjV9vx1c4WAzZG2PZ/XXcGvWsGfbM7qNVwinmcSdJWqh9PgAXGtBlbgnWGd14j/AfLRE25WS4qkFX4AweGK46t7/L1YWjpr+RhrgofP08hoXWQMFZ4iJmrXNNtDRnL1b1cHHofMXilrLLvBGF+XWDMZgc4o2fcq9/0r3qgQpKBsWkVxxL5IoXHrFzXj8jBlUgwKmGv9lV3I9SD0Jd8gOpCuZnhAFzgwJ4uZZ+8eYKQ5041kkbaOae5/RiDs9wqom6wwhfIwd3RqwVTkmCTY9+7Nf6OUL8iwuaBTB5aCqvLQj6HykXoCIfebB7sHFKD0Uv4bipzhznEdhoxUrd6U9EPzXxAOjqkXRfl5C+ESEVz5MRvKIQgoyy0YsJ0P/cFH9j2TCM4AAzDBFRKYSwUiSSLzj/t3SlOen+q9n7A5hjHjsDSQRSMgm1WyK6LIbHJxmDdmwEyVgo/o8cVjzQ4GVu0Vjtozea++iBKdjIOtAlVNBqPRvZtOPQrrZ9rs=
