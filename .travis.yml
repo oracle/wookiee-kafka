@@ -14,10 +14,9 @@ cache:
 
 script:
 - echo "TRAVIS_TAG $TRAVIS_TAG"
-- test "$TRAVIS_TAG" != "" && mvn versions:set -DnewVersion=$TRAVIS_TAG deploy -q --settings settings.xml || test $TRAVIS_PULL_REQUEST == "false" && mvn deploy -q --settings settings.xml || mvn -q test -B
+- '[ "IS_${TRAVIS_TAG}" != "IS_" ] && mvn versions:set -DnewVersion=$TRAVIS_TAG && mvn deploy site-deploy -Dgithub.global.oauth2Token=$GITHUB_TOKEN --settings settings.xml || [ "${TRAVIS_PULL_REQUEST}" = "false" ] && mvn deploy --settings settings.xml || mvn -q test -B'
 
 after_success:
-- '[ "$TRAVIS_TAG" != "" ] && mvn site-deploy -Dgithub.global.oauth2Token=$GITHUB_TOKEN || true'
 - '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && sbt ++2.11.4 coverageAggregate || true'
 - '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && sbt ++2.11.4 coveralls || true'
 
