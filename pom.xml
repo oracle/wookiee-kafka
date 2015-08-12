@@ -87,7 +87,7 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>wookiee-core</artifactId>
-            <version>1.1-SNAPSHOT</version>
+            <version>1.1.1</version>
         </dependency>
         <dependency>
             <groupId>com.typesafe.akka</groupId>
@@ -98,7 +98,7 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>wookiee-test</artifactId>
-            <version>1.1-SNAPSHOT</version>
+            <version>1.1.1</version>
             <scope>test</scope>
         </dependency>
         <dependency>
