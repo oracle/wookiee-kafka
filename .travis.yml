@@ -12,10 +12,10 @@ cache:
   directories:
   - $HOME/.m2
 
-before_script:
+before_install:
 - test "$TRAVIS_PULL_REQUEST" == "false" && git clone -b travis `git config --get remote.origin.url` target/travis || true
 
-script:
+install:
 - '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && echo "Not a PR Build" && [ "IS_${TRAVIS_TAG}" != "IS_" ] && echo "Is tag build $TRAVIS_TAG" || echo "."'
 - '[ "IS_${TRAVIS_TAG}" != "IS_" ] && mvn versions:set -DnewVersion=$TRAVIS_TAG -P core || true'
 - '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && echo "Deploying..." && mvn deploy site-deploy -P core -DskipTests=true --settings target/travis/settings.xml -Dgithub.global.oauth2Token=$GITHUB_TOKEN || echo "Testing..." && mvn -q -P core test -B'
