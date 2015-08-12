@@ -1,0 +1,147 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Wookiee-kafka by Webtrends</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/github-light.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1>Wookiee-kafka</h1>
+        <p>Kafka support component for Wookiee</p>
+
+        <p class="view"><a href="https://github.com/Webtrends/wookiee-kafka">View the Project on GitHub <small>Webtrends/wookiee-kafka</small></a></p>
+
+
+        <ul>
+          <li><a href="https://github.com/Webtrends/wookiee-kafka/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/Webtrends/wookiee-kafka/tarball/master">Download <strong>TAR Ball</strong></a></li>
+          <li><a href="https://github.com/Webtrends/wookiee-kafka">View On <strong>GitHub</strong></a></li>
+        </ul>
+      </header>
+      <section>
+        <h1>
+<a id="wookiee---component-kafka" class="anchor" href="#wookiee---component-kafka" aria-hidden="true"><span class="octicon octicon-link"></span></a>Wookiee - Component: Kafka</h1>
+
+<p><a href="https://travis-ci.org/Webtrends/wookiee-kafka"><img src="https://travis-ci.org/Webtrends/wookiee-kafka.svg?branch=master" alt="Build Status"></a> <a href="https://coveralls.io/github/Webtrends/wookiee-kafka?branch=master"><img src="https://coveralls.io/repos/Webtrends/wookiee-kafka/badge.svg?branch=master&amp;service=github" alt="Coverage Status"></a> <a href="https://github.com/Webtrends/wookiee-kafka/releases"><img src="https://img.shields.io/github/release/webtrends/wookiee-kafka.svg" alt="Latest Release"></a> <a href="http://www.apache.org/licenses/LICENSE-2.0.txt"><img src="http://img.shields.io/:license-Apache%202-red.svg" alt="License"></a></p>
+
+<p><a href="https://github.com/Webtrends/wookiee">Main Wookiee Project</a></p>
+
+<p>For Configuration information see <a href="docs/config.md">Kafka Config</a></p>
+
+<p>The kafka component allows users to set up a Worker which can be replicated and consumes from a Kafka topic. It is also capable of coordinating multiple other Nodes (via Zookeeper) to share the load of topic consumption. In other words, this component allows one to create a horizontally scalable kafka consumer app with ease.</p>
+
+<h3>
+<a id="partitionconsumerworker" class="anchor" href="#partitionconsumerworker" aria-hidden="true"><span class="octicon octicon-link"></span></a>PartitionConsumerWorker</h3>
+
+<p>This is the most important class and will have to be overridden, create a class of your own that extends it within your app. Then override the function:</p>
+
+<pre><code>    def onReceive(messageResponse: MessageResponse) {}
+</code></pre>
+
+<p>This method will actually handle the event consumed from Kafka and process it in the way your app sees fit.</p>
+
+<h3>
+<a id="configuration" class="anchor" href="#configuration" aria-hidden="true"><span class="octicon octicon-link"></span></a>Configuration</h3>
+
+<h1>
+<a id="base" class="anchor" href="#base" aria-hidden="true"><span class="octicon octicon-link"></span></a>Base</h1>
+
+<p>Base configuration is simple, when not using a producer or consumer all one needs to provide is an app-name</p>
+
+<div class="highlight highlight-json"><pre>wookiee-kafka {
+    <span class="pl-ii">app-name</span> <span class="pl-ii">=</span> <span class="pl-s"><span class="pl-pds">"</span>test<span class="pl-pds">"</span></span>
+}</pre></div>
+
+<h1>
+<a id="consumer" class="anchor" href="#consumer" aria-hidden="true"><span class="octicon octicon-link"></span></a>Consumer</h1>
+
+<p>If one would like to utilize horizontally scalable consumers, then set these properties and
+override the onReceive(messageResponse: MessageResponse) method in PartitionConsumerWorker.scala</p>
+
+<div class="highlight highlight-json"><pre>wookiee-kafka {
+    <span class="pl-ii">app-name</span> <span class="pl-ii">=</span> <span class="pl-s"><span class="pl-pds">"</span>test<span class="pl-pds">"</span></span>
+    <span class="pl-ii">worker-class</span> <span class="pl-ii">=</span> <span class="pl-s"><span class="pl-pds">"</span>com.product.code.CustomWorker<span class="pl-pds">"</span></span>
+    <span class="pl-ii">zk-offset-commit-rate-millis</span> <span class="pl-ii">=</span> <span class="pl-ii">500</span>
+    <span class="pl-ii">consumer</span> <span class="pl-ii">{</span>
+      <span class="pl-ii">topics</span> <span class="pl-ii">=</span> <span class="pl-ii">[</span>
+        <span class="pl-ii">{</span>
+          <span class="pl-ii">name</span> <span class="pl-ii">=</span> <span class="pl-s"><span class="pl-pds">"</span>Lab_G_scsRawHits<span class="pl-pds">"</span></span>
+          <span class="pl-ii">event-age-threshold-seconds</span> <span class="pl-ii">=</span> <span class="pl-ii">90</span>
+        },
+        {
+          <span class="pl-ii">name</span> <span class="pl-ii">=</span> <span class="pl-s"><span class="pl-pds">"</span>Lab_G_dcRawHits<span class="pl-pds">"</span></span>
+          <span class="pl-ii">event-age-threshold-seconds</span> <span class="pl-ii">=</span> <span class="pl-ii">0</span>
+        }
+      ]
+
+      kafka-hosts = [
+        {
+          <span class="pl-s"><span class="pl-pds">"</span>id<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>cluster1<span class="pl-pds">"</span></span>
+          <span class="pl-s"><span class="pl-pds">"</span>brokers<span class="pl-pds">"</span></span><span class="pl-ii">:</span> [<span class="pl-s"><span class="pl-pds">"</span>server1.com<span class="pl-pds">"</span></span>,<span class="pl-s"><span class="pl-pds">"</span>server2.com<span class="pl-pds">"</span></span>]
+        },
+        {
+          <span class="pl-s"><span class="pl-pds">"</span>id<span class="pl-pds">"</span></span>: <span class="pl-s"><span class="pl-pds">"</span>cluster2<span class="pl-pds">"</span></span>
+          <span class="pl-s"><span class="pl-pds">"</span>brokers<span class="pl-pds">"</span></span><span class="pl-ii">:</span> [<span class="pl-s"><span class="pl-pds">"</span>2server1.com<span class="pl-pds">"</span></span>]
+        }
+    ]
+}</pre></div>
+
+<p>One will also need to pull in the wookiee-zookeeper component and configure it like so</p>
+
+<div class="highlight highlight-json"><pre>wookiee-zookeeper {
+  <span class="pl-ii">datacenter</span> <span class="pl-ii">=</span> <span class="pl-s"><span class="pl-pds">"</span>Lab<span class="pl-pds">"</span></span>
+  <span class="pl-ii">pod</span> <span class="pl-ii">=</span> <span class="pl-s"><span class="pl-pds">"</span>Tests<span class="pl-pds">"</span></span>
+  <span class="pl-ii">quorum</span> <span class="pl-ii">=</span> <span class="pl-s"><span class="pl-pds">"</span>zoo01.keeper.org<span class="pl-pds">"</span></span>
+  <span class="pl-ii">session-timeout</span> <span class="pl-ii">=</span> <span class="pl-ii">30s</span>
+  <span class="pl-ii">connection-timeout</span> <span class="pl-ii">=</span> <span class="pl-ii">30s</span>
+  <span class="pl-ii">retry-sleep</span> <span class="pl-ii">=</span> <span class="pl-ii">5s</span>
+  <span class="pl-ii">retry-count</span> <span class="pl-ii">=</span> <span class="pl-ii">150</span>
+  <span class="pl-ii">base-path</span> <span class="pl-ii">=</span> <span class="pl-s"><span class="pl-pds">"</span>/discovery/clusters<span class="pl-pds">"</span></span>
+
+  <span class="pl-ii">message-processor</span> <span class="pl-ii">{</span>
+    <span class="pl-ii">#</span> <span class="pl-ii">How</span> <span class="pl-ii">often</span> <span class="pl-ii">the</span> <span class="pl-ii">MessageProcessor</span> <span class="pl-ii">should</span> <span class="pl-ii">share</span> <span class="pl-ii">it's</span> <span class="pl-ii">subscription</span> <span class="pl-ii">information</span>
+    <span class="pl-ii">share-interval</span> <span class="pl-ii">=</span> <span class="pl-ii">1s</span>
+    <span class="pl-ii">#</span> <span class="pl-ii">When</span> <span class="pl-ii">should</span> <span class="pl-ii">MessageTopicProcessor</span> <span class="pl-ii">instances</span> <span class="pl-ii">be</span> <span class="pl-ii">removed</span> <span class="pl-ii">after</span> <span class="pl-ii">there</span> <span class="pl-ii">are</span> <span class="pl-ii">no</span> <span class="pl-ii">longer</span> <span class="pl-ii">any</span> <span class="pl-ii">subscribers</span> <span class="pl-ii">for</span> <span class="pl-ii">that</span> <span class="pl-ii">topic</span>
+    <span class="pl-ii">trash-interval</span> <span class="pl-ii">=</span> <span class="pl-ii">30s</span>
+    <span class="pl-ii">#</span> <span class="pl-ii">The</span> <span class="pl-ii">default</span> <span class="pl-ii">send</span> <span class="pl-ii">timeout</span>
+    <span class="pl-ii">default-send-timeout</span> <span class="pl-ii">=</span> <span class="pl-ii">2s</span>
+  }
+}</pre></div>
+
+<h1>
+<a id="producer" class="anchor" href="#producer" aria-hidden="true"><span class="octicon octicon-link"></span></a>Producer</h1>
+
+<p>If one would like to write to a set of Kafka brokers then configure the producers like so</p>
+
+<div class="highlight highlight-json"><pre>wookiee-kafka {
+    <span class="pl-ii">app-name</span> <span class="pl-ii">=</span> <span class="pl-s"><span class="pl-pds">"</span>test<span class="pl-pds">"</span></span>
+
+    <span class="pl-ii">producer</span> <span class="pl-ii">{</span>
+      <span class="pl-ii">producer.type=</span><span class="pl-s"><span class="pl-pds">"</span>sync<span class="pl-pds">"</span></span>
+      <span class="pl-ii">metadata.broker.list=</span><span class="pl-s"><span class="pl-pds">"</span>broker1.com:9092,broker2.com:9092<span class="pl-pds">"</span></span>
+      <span class="pl-ii">request.required.acks=1</span>
+      <span class="pl-ii">queue.time=5000</span>
+      <span class="pl-ii">queue.size=10000</span>
+      <span class="pl-ii">batch.size=200</span>
+      <span class="pl-ii">compression.codec=</span><span class="pl-s"><span class="pl-pds">"</span>gzip<span class="pl-pds">"</span></span>
+    }
+}</pre></div>
+      </section>
+      <footer>
+        <p>This project is maintained by <a href="https://github.com/Webtrends">Webtrends</a></p>
+        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="javascripts/scale.fix.js"></script>
+    
+  </body>
+</html>
