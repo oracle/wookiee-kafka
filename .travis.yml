@@ -16,8 +16,9 @@ before_script:
 - test "$TRAVIS_PULL_REQUEST" == "false" && git clone -b travis `git config --get remote.origin.url` target/travis || true
 
 script:
-- echo "TRAVIS_TAG $TRAVIS_TAG"
-- '[ "IS_${TRAVIS_TAG}" != "IS_" ] && mvn versions:set -DnewVersion=$TRAVIS_TAG && mvn deploy site-deploy -Dgithub.global.oauth2Token=$GITHUB_TOKEN --settings settings.xml || [ "${TRAVIS_PULL_REQUEST}" = "false" ] && mvn deploy --settings settings.xml || mvn -q test -B'
+- '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && echo "Not a PR Build" && [ "IS_${TRAVIS_TAG}" != "IS_" ] && echo "Is tag build $TRAVIS_TAG" || echo "."'
+- '[ "IS_${TRAVIS_TAG}" != "IS_" ] && mvn versions:set -DnewVersion=$TRAVIS_TAG -P core || true'
+- '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && echo "Deploying..." && mvn deploy site-deploy -P core -DskipTests=true --settings target/travis/settings.xml -Dgithub.global.oauth2Token=$GITHUB_TOKEN || echo "Testing..." && mvn -q -P core test -B'
 
 after_success:
 - '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && sbt ++2.11.4 coverageAggregate || true'
