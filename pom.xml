@@ -17,6 +17,7 @@
         <build>${build.number}</build>
         <build-artifact-name>${project.artifactId}-${project.version}</build-artifact-name>
 
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <scala.artifact.version>2.11</scala.artifact.version>
         <scala.version>${scala.artifact.version}.4</scala.version>
         <scoverage.plugin.version>1.1.1</scoverage.plugin.version>
