@@ -14,10 +14,11 @@ cache:
 
 before_install:
 - test "$TRAVIS_PULL_REQUEST" == "false" && git clone -b travis `git config --get remote.origin.url` target/travis || true
-
-install:
 - '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && echo "Not a PR Build" && [ "IS_${TRAVIS_TAG}" != "IS_" ] && echo "Is tag build $TRAVIS_TAG" || echo "."'
 - '[ "IS_${TRAVIS_TAG}" != "IS_" ] && mvn versions:set -DnewVersion=$TRAVIS_TAG || true'
+
+install:
+- 'mvn install -DskipTests=true -Dmaven.javadoc.skip=true -B -V'
 
 script:
 - '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && echo "Deploying..." && mvn deploy --settings target/travis/settings.xml -Dgithub.global.oauth2Token=$GITHUB_TOKEN || echo "Testing..." && mvn test -B'
