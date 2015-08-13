@@ -38,7 +38,7 @@
     <custom>
         <fluidoSkin>
             <gitHub>
-                <projectId>Webtrends/wookiee</projectId>
+                <projectId>Webtrends/wookiee-kafka</projectId>
                 <ribbonOrientation>right</ribbonOrientation>
                 <ribbonColor>black</ribbonColor>
             </gitHub>
