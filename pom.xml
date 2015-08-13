@@ -16,7 +16,6 @@
         <release.type>SNAPSHOT</release.type>
         <build>${build.number}</build>
         <parent.dir>${project.basedir}/../..</parent.dir>
-        <skipTests>true</skipTests>
     </properties>
 
     <groupId>com.webtrends</groupId>
@@ -87,7 +86,7 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>wookiee-core</artifactId>
-            <version>1.1-SNAPSHOT</version>
+            <version>1.1.1</version>
         </dependency>
         <dependency>
             <groupId>com.typesafe.akka</groupId>
@@ -98,18 +97,18 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>wookiee-test</artifactId>
-            <version>1.1-SNAPSHOT</version>
+            <version>1.1.1</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>wookiee-zookeeper</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>1.0.0</version>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>wookiee-metrics</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>1.0.0</version>
         </dependency>
         <dependency>
             <groupId>org.apache.curator</groupId>

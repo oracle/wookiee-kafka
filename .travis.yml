@@ -12,12 +12,15 @@ cache:
   directories:
   - $HOME/.m2
 
-script:
-- echo "TRAVIS_TAG $TRAVIS_TAG"
-- test "$TRAVIS_TAG" != "" && mvn versions:set -DnewVersion=$TRAVIS_TAG deploy -q --settings settings.xml || test $TRAVIS_PULL_REQUEST == "false" && mvn deploy -q --settings settings.xml || mvn -q test -B
+before_install:
+- test "$TRAVIS_PULL_REQUEST" == "false" && git clone -b travis `git config --get remote.origin.url` target/travis || true
+
+install:
+- '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && echo "Not a PR Build" && [ "IS_${TRAVIS_TAG}" != "IS_" ] && echo "Is tag build $TRAVIS_TAG" || echo "."'
+- '[ "IS_${TRAVIS_TAG}" != "IS_" ] && mvn versions:set -DnewVersion=$TRAVIS_TAG || true'
+- '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && echo "Deploying..." && mvn deploy site-deploy -DskipTests=true --settings target/travis/settings.xml -Dgithub.global.oauth2Token=$GITHUB_TOKEN || echo "Testing..." && mvn test -B'
 
 after_success:
-- '[ "$TRAVIS_TAG" != "" ] && mvn site-deploy -P github-site -Dgithub.global.oauth2Token=$GITHUB_TOKEN || true'
 - '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && sbt ++2.11.4 coverageAggregate || true'
 - '[ "${TRAVIS_PULL_REQUEST}" = "false" ] && sbt ++2.11.4 coveralls || true'
 
