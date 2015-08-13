@@ -15,7 +15,11 @@
         <build.version>1.0.0</build.version>
         <release.type>SNAPSHOT</release.type>
         <build>${build.number}</build>
-        <parent.dir>${project.basedir}/../..</parent.dir>
+        <build-artifact-name>${project.artifactId}-${project.version}</build-artifact-name>
+
+        <scala.artifact.version>2.11</scala.artifact.version>
+        <scala.version>${scala.artifact.version}.4</scala.version>
+        <scoverage.plugin.version>1.1.1</scoverage.plugin.version>
     </properties>
 
     <groupId>com.webtrends</groupId>
@@ -24,6 +28,41 @@
     <packaging>jar</packaging>
     <name>Component: Kafka</name>
     <description>Apache Kafka support for Wookiee, make simple production and consumption of Kafka topics.</description>
+
+    <!-- List the core committers -->
+    <developers>
+        <developer>
+            <id>wteng</id>
+            <name>Webtrends Engineering</name>
+            <email>info@webtrends.com</email>
+            <organization>webtrends</organization>
+            <organizationUrl>http://webtrends.com</organizationUrl>
+            <roles>
+                <role>developer</role>
+            </roles>
+            <timezone>-8</timezone>
+        </developer>
+    </developers>
+
+    <url>http://webtrends.github.io/wookiee-kafka</url>
+    <organization>
+        <name>webtrends</name>
+        <url>http://webtrends.com</url>
+    </organization>
+
+    <issueManagement>
+        <system>Github</system>
+        <url>https://github.com/Webtrends/wookiee-kafka/issues</url>
+    </issueManagement>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+            <comments>A business-friendly OSS license</comments>
+        </license>
+    </licenses>
 
     <repositories>
         <repository>
@@ -292,7 +331,7 @@
             <plugin>
                 <groupId>org.scoverage</groupId>
                 <artifactId>scoverage-maven-plugin</artifactId>
-                <version>1.0.4</version>
+                <version>1.1.1</version>
                 <configuration>
                     <scalaVersion>${scala.version}</scalaVersion>
                     <highlighting>true</highlighting>
