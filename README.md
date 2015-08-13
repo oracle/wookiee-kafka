@@ -32,6 +32,7 @@ override the onReceive(messageResponse: MessageResponse) method in PartitionCons
 ```json
 wookiee-kafka {
     app-name = "test"
+    cluster-id = "collection" // Will be used to build up zookeeper path
     worker-class = "com.product.code.CustomWorker"
     zk-offset-commit-rate-millis = 500
     consumer {
