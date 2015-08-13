@@ -44,11 +44,7 @@ trait KafkaSettings extends ConfigHelper { this: Actor =>
 
   // Used for ZK paths
   def pod = zkConf.get.dataCenter+"_"+zkConf.get.pod
-  def appRootPath = s"/$appName${Try {kafkaConfig.getString("cluster-id") match {
-      case "" => ""
-      case id: String => s"_$id"
-    }
-  } getOrElse ""}/$pod"
+  def appRootPath = s"/$appName${Try(kafkaConfig.getString("cluster-id")).filter(_.nonEmpty).map{"_"+_} getOrElse ""}/$pod"
 
   def distributionRootPath = s"$appRootPath/kafkaConsumerDistribution"
 
