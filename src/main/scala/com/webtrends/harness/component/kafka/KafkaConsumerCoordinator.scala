@@ -23,9 +23,8 @@ import akka.actor._
 import akka.util.Timeout
 import com.webtrends.harness.app.HarnessActor.{ConfigChange, PrepareForShutdown}
 import com.webtrends.harness.component.kafka.actor.AssignmentDistributorLeader.PartitionAssignment
-import com.webtrends.harness.component.kafka.actor.KafkaTopicManager.DownSources
 import com.webtrends.harness.component.kafka.actor.PartitionConsumerWorker._
-import com.webtrends.harness.component.kafka.actor.{HostList, AssignmentDistributorLeader, OffsetManager, PartitionConsumerWorker}
+import com.webtrends.harness.component.kafka.actor.{AssignmentDistributorLeader, HostList, OffsetManager, PartitionConsumerWorker}
 import com.webtrends.harness.component.kafka.health.CoordinatorHealth
 import com.webtrends.harness.component.kafka.util.KafkaSettings
 import com.webtrends.harness.component.zookeeper.ZookeeperEvent.{ZookeeperChildEvent, ZookeeperChildEventRegistration}
@@ -42,16 +41,15 @@ object KafkaConsumerCoordinator {
   def props(sourceProxy: ActorRef, sourceMonitor: Option[ActorRef] = None) =
     Props(new KafkaConsumerCoordinator(sourceProxy, sourceMonitor))
 
-  case class NodeData(nodeId: String, data: String)
   case class TopicPartitionResp(partitionsByTopic: Set[PartitionAssignment])
   case class BroadcastToWorkers(msg: Any)
 }
 
 class KafkaConsumerCoordinator(kafkaProxy: ActorRef, sourceMonitor: Option[ActorRef] = None) extends Actor
-with ActorLoggingAdapter
-with CoordinatorHealth
-with KafkaSettings
-with ZookeeperEventAdapter {
+  with ActorLoggingAdapter
+  with CoordinatorHealth
+  with KafkaSettings
+  with ZookeeperEventAdapter {
 
   import AssignmentDistributorLeader._
   import KafkaConsumerCoordinator._
@@ -81,11 +79,6 @@ with ZookeeperEventAdapter {
   def receive = initial
 
   def initial:Receive = healthReceive orElse configReceive orElse {
-    case NodeData(nodeId, data) =>
-      val assignments = Serialization.read(data)(formats, manifest[List[PartitionAssignment]])
-      sourceMonitor foreach (_ ! HostList(assignments.map(_.host)))
-      processAssignmentEvent(assignments)
-
     // ZK data has changed
     case ZookeeperChildEvent(event) =>
       // Node registration change
@@ -95,7 +88,9 @@ with ZookeeperEventAdapter {
           val nodeId = event.getData.getPath.split("/").last
           if (hostname == nodeId) {
             log.debug(s"Node data for [$nodeId] has been updated. Notifying it")
-            self ! NodeData(nodeId, new String(event.getData.getData, utf8))
+            val assignments = Serialization.read(new String(event.getData.getData, utf8))(formats, manifest[List[PartitionAssignment]])
+            sourceMonitor foreach (_ ! HostList(assignments.map(_.host)))
+            processAssignmentEvent(assignments)
           }
 
         case _ =>

@@ -114,7 +114,7 @@ trait CoordinatorHealth { this: KafkaConsumerCoordinator =>
   }
 
   def listActiveWorkers: List[String] = {
-    workers.filter(entry => entry._2.started).map(entry => entry._1).toList
+    workers.filter(entry => entry._2.started).keys.toList
   }
 
   def aggregateHealthStates(): HealthComponent = {
@@ -134,20 +134,21 @@ trait CoordinatorHealth { this: KafkaConsumerCoordinator =>
       workers.contains(h._1) && (workers(h._1).started || (!workers(h._1).started && !h._2._1.healthy))
     }
 
-    var unHealthy = filteredHealths.filter { h => !h._2._1.healthy && !downSources.contains(getAssignmentHost(h._2._1.name)) }.map { h: (String, (WorkerHealthState, Long, String)) =>
-      HealthComponent(name = h._2._1.name,
+    var unHealthy = filteredHealths.filter { case (name, (state, age, topic)) => !state.healthy && notSchedDowntime(state.name) }
+      .map { case (name, (state, age, topic)) =>
+      HealthComponent(name = state.name,
         state = ComponentState.CRITICAL,
-        details = h._2._1.status)
+        details = state.status)
     }.toList
     val time = System.currentTimeMillis()
-    unHealthy = unHealthy ++ filteredHealths.filter { h =>
-      h._2._1.healthy && topicAgeThresholds(h._2._3) > 0 && (time - h._2._2) > topicAgeThresholds(h._2._3) && !downSources.contains(getAssignmentHost(h._2._1.name))
+    unHealthy = filteredHealths.filter { case (name, (state, age, topic)) =>
+      state.healthy && topicAgeThresholds(topic) > 0 && (time - age) > topicAgeThresholds(topic) && notSchedDowntime(state.name)
     }.map {
-      h: (String, (WorkerHealthState, Long, String)) =>
-        HealthComponent(name = h._2._1.name,
+      case (name, (state, age, topic)) =>
+        HealthComponent(name = state.name,
           state = ComponentState.DEGRADED,
-          details = s"No events in ${(time - h._2._2) / 1000} seconds")
-    }.toList
+          details = s"No events in ${(time - age) / 1000} seconds")
+    }.toList ++ unHealthy
     aggregatedComponent(filteredHealths.toMap, label, unHealthy)
   }
 
@@ -159,6 +160,8 @@ trait CoordinatorHealth { this: KafkaConsumerCoordinator =>
     }.toList
     aggregatedComponent(healths.toMap, label, unHealthy)
   }
+  
+  def notSchedDowntime(workerName: String): Boolean = !downSources.contains(getAssignmentHost(workerName))
 
   def aggregatedComponent(healths: Map[String, Any], label: String, unHealthy: List[HealthComponent]): HealthComponent = {
     HealthComponent(name = label,

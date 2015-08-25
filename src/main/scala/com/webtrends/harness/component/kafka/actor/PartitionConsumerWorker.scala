@@ -287,12 +287,14 @@ class PartitionConsumerWorker(kafkaProxy: ActorRef, assign: PartitionAssignment,
 
   def acquireLock(): Option[Acquired] = {
     try {
-      val acquiredLease = lock.acquire(5, TimeUnit.SECONDS) match {
-        case null => throw new InterruptedException("Could not acquire lock before timeout")
-        case l: Lease => l
+      lock.acquire(10, TimeUnit.SECONDS) match {
+        case null =>
+          log.warning("Could not acquire lock before timeout, will try again")
+          None
+        case l: Lease =>
+          log.debug(s"$name: Lock acquired")
+          Some(Acquired(l))
       }
-      log.debug(s"$name: Lock acquired")
-      Some(Acquired(acquiredLease))
     } catch {
       case e: Throwable =>
         log.error(s"$name: Unable to obtain lock: ${e.getMessage} ")
