@@ -32,6 +32,12 @@ class SourceMonitor(component: String) extends HActor with KafkaSettings with Me
 
   val nagiosSourceChecks = Counter(s"nagios.source.checks.$component")
 
+  /**
+   * These two receives are designed in such a way that we will only ever process the last message
+   * in the mailbox (ie the most recently received) as there is no reason to process a bunch of
+   * intermediate host lists. As a result, one should spin up a separate SourceMonitor for each
+   * place it is used
+   */
   def waitingOnHostList: Receive = {
     case HostList(hosts) =>
       self ! LastMessage()
