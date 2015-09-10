@@ -19,7 +19,7 @@
 
 package com.webtrends.harness.component.kafka.actor
 
-import akka.actor.{Actor, ActorRef, Props}
+import akka.actor.{Actor, Props}
 import com.webtrends.harness.component.kafka.KafkaConsumerCoordinator.TopicPartitionResp
 import com.webtrends.harness.component.kafka.actor.AssignmentDistributorLeader.PartitionAssignment
 import com.webtrends.harness.component.kafka.util.KafkaSettings
@@ -31,6 +31,7 @@ import kafka.consumer.SimpleConsumer
 
 import scala.collection.mutable
 import scala.language.postfixOps
+import scala.util.Try
 
 object KafkaTopicManager {
   /**
@@ -44,14 +45,18 @@ object KafkaTopicManager {
   case class DownSources(sources: Set[String])
   case object TopicPartitionReq
 
-  def props(sourceMonitor: Option[ActorRef]) = Props(classOf[KafkaTopicManager], sourceMonitor)
+  def props() = Props(classOf[KafkaTopicManager])
 }
 
-class KafkaTopicManager(sourceMonitor: Option[ActorRef]) extends Actor with KafkaSettings
+class KafkaTopicManager() extends Actor with KafkaSettings
 with ActorLoggingAdapter with ZookeeperAdapter with ZookeeperEventAdapter {
   import KafkaTopicManager._
 
   val actorName = "Kafka Topic Manager"
+  val sourceMonitor = if (Try { kafkaConfig.getBoolean("monitor-sources") } getOrElse false) {
+    log.info("'monitor-sources' is true, starting Source Monitor")
+    Some(context.actorOf(Props(classOf[SourceMonitor], "topic-manager"), "topic-source-monitor"))
+  } else None
 
   // Holder of consumers connected to each kafka broker
   val consumersByHost = new mutable.HashMap[String, SimpleConsumer]()
@@ -98,11 +103,11 @@ with ActorLoggingAdapter with ZookeeperAdapter with ZookeeperEventAdapter {
       }
     }
 
-    val unprocClusters = brokers.filter(it => !processedClusters.contains(it._2.cluster)).map(_._2).toSet
+    val unprocClusters = brokers.filter(it => !processedClusters.contains(it._2.cluster)).values.toSet
     if (unprocClusters.nonEmpty) {
       log.warn(s"Some brokers despondent: ${unprocClusters.map(_.cluster).mkString(",")}. Remaining brokers will start their workers.")
       val okayAndDown = unprocClusters.partition(it => downSources.contains(it.host))
-      context.parent ! HealthComponent(actorName, if (okayAndDown._2.size > 0) ComponentState.DEGRADED else ComponentState.NORMAL,
+      context.parent ! HealthComponent(actorName, if (okayAndDown._2.nonEmpty) ComponentState.DEGRADED else ComponentState.NORMAL,
         s"Despondent Clusters: [${okayAndDown._2.map(_.cluster).mkString(",")}], Scheduled Downtime: [${okayAndDown._1.map(_.cluster).mkString(",")}]")
     } else {
       log.debug("Successfully processed brokers {}", brokers.toString())

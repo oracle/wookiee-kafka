@@ -24,7 +24,7 @@ import akka.util.Timeout
 import com.webtrends.harness.app.HarnessActor.{ConfigChange, PrepareForShutdown}
 import com.webtrends.harness.component.kafka.actor.AssignmentDistributorLeader.PartitionAssignment
 import com.webtrends.harness.component.kafka.actor.PartitionConsumerWorker._
-import com.webtrends.harness.component.kafka.actor.{AssignmentDistributorLeader, HostList, OffsetManager, PartitionConsumerWorker}
+import com.webtrends.harness.component.kafka.actor._
 import com.webtrends.harness.component.kafka.health.CoordinatorHealth
 import com.webtrends.harness.component.kafka.util.KafkaSettings
 import com.webtrends.harness.component.zookeeper.ZookeeperEvent.{ZookeeperChildEvent, ZookeeperChildEventRegistration}
@@ -35,17 +35,18 @@ import org.apache.curator.framework.recipes.cache.PathChildrenCacheEvent.Type._
 
 import scala.collection.mutable
 import scala.concurrent.duration._
+import scala.util.Try
 
 object KafkaConsumerCoordinator {
 
-  def props(sourceProxy: ActorRef, sourceMonitor: Option[ActorRef] = None) =
-    Props(new KafkaConsumerCoordinator(sourceProxy, sourceMonitor))
+  def props(sourceProxy: ActorRef) =
+    Props(new KafkaConsumerCoordinator(sourceProxy))
 
   case class TopicPartitionResp(partitionsByTopic: Set[PartitionAssignment])
   case class BroadcastToWorkers(msg: Any)
 }
 
-class KafkaConsumerCoordinator(kafkaProxy: ActorRef, sourceMonitor: Option[ActorRef] = None) extends Actor
+class KafkaConsumerCoordinator(kafkaProxy: ActorRef) extends Actor
   with ActorLoggingAdapter
   with CoordinatorHealth
   with KafkaSettings
@@ -56,6 +57,10 @@ class KafkaConsumerCoordinator(kafkaProxy: ActorRef, sourceMonitor: Option[Actor
 
   implicit val timeout = Timeout(10 seconds)
   implicit val system = context.system
+  val sourceMonitor = if (Try { kafkaConfig.getBoolean("monitor-sources") } getOrElse false) {
+    log.info("'monitor-sources' is true, starting Source Monitor")
+    Some(context.actorOf(Props(classOf[SourceMonitor], "coordinator"), "coordinator-source-monitor"))
+  } else None
 
   val offsetManager = context.actorOf(OffsetManager.props(appRootPath, offsetGetExpiration), "offset-manager")
 
