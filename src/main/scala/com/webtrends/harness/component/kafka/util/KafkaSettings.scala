@@ -40,7 +40,8 @@ trait KafkaSettings extends ConfigHelper { this: Actor =>
   var kafkaConfig: Config = ConfigUtil.prepareSubConfig(renewableConfig, "wookiee-kafka")
   val hostname = InetAddress.getLocalHost.getHostName
   val clientId = s"kk_$hostname"
-  val bufferSize = 1024*1024
+  val bufferSize = Try { kafkaConfig.getInt("consumer-buffer-size") } getOrElse 1024*1024
+  val fetchSize = Try { kafkaConfig.getInt("consumer-fetch-size") } getOrElse 1024*1024
 
   // Used for ZK paths
   def pod = zkConf.get.dataCenter+"_"+zkConf.get.pod
