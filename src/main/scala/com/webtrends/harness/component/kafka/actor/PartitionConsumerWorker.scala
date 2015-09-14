@@ -342,7 +342,7 @@ class PartitionConsumerWorker(kafkaProxy: ActorRef, assign: PartitionAssignment,
   def fetchTopicPart(topic: String, part: Int, offset: Long, clientId: String): FetchRes = {
     val fetch = new FetchRequestBuilder()
       .clientId(clientId)
-      .addFetch(topic, part, offset, 150000)
+      .addFetch(topic, part, offset, fetchSize)
       .build()
 
     val fetchResponse = consumer.get.fetch(fetch)
