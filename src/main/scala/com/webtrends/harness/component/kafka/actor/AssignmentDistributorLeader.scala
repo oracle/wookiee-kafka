@@ -20,6 +20,20 @@ object AssignmentDistributorLeader {
     }
   }
 
+
+  def getAssignments(assignmentInfo: DistributeAssignments): Map[String, Set[PartitionAssignment]] = {
+    val nodes = assignmentInfo.nodes
+    val assignsWithIndex = assignmentInfo.topicResp.partitionsByTopic.zipWithIndex
+    val assignsByNode = (for (
+      node <- nodes.zipWithIndex
+    ) yield {
+        node._1 -> assignsWithIndex.filter { assign =>
+          (assign._2 >= node._2) && (assign._2 - node._2) % nodes.length == 0
+        }.map { x => x._1 }
+      }).toMap
+    assignsByNode
+  }
+
   implicit val formats = Serialization.formats(NoTypeHints) +
     FieldSerializer[PartitionAssignment]()
   implicit val partsManifest = manifest[List[PartitionAssignment]]
@@ -68,7 +82,7 @@ class AssignmentDistributorLeader(sourceProxy: ActorRef)
   override def receive: Receive = {
     case RefreshNodeAssignments => refreshNodeAssignments()
 
-    case da: DistributeAssignments => distributeAssignments(da)
+    case da: DistributeAssignments => distributeAssignmentsByNode(da)
 
     case FetchTimeout  => log.error(s"${self.path.name} Fetch timeout!")
   }
@@ -86,15 +100,8 @@ class AssignmentDistributorLeader(sourceProxy: ActorRef)
     }
   }
 
-  def distributeAssignments(assignmentInfo: DistributeAssignments) = {
-    val nodes = assignmentInfo.nodes
-    val assignsWithIndex = assignmentInfo.topicResp.partitionsByTopic.zipWithIndex
-    val assignsByNode = (for (
-      node <- nodes.zipWithIndex
-    ) yield {
-        node._1 -> assignsWithIndex.filter { assign =>
-          (assign._2 >= node._2) && (assign._2 - node._2) % nodes.length == 0 }.map { x => x._1 }
-      }).toMap
+  def distributeAssignmentsByNode(assignmentInfo: DistributeAssignments) = {
+    val assignsByNode: Map[String, Set[PartitionAssignment]] = getAssignments(assignmentInfo)
 
     log.debug(s"Setting new node assignments: ${assignsByNode.toString()}")
     setAssignmentsForNodes(assignsByNode.map { case (nodeId, partitionsByTopic) =>

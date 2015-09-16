@@ -30,6 +30,7 @@ import kafka.api.TopicMetadataRequest
 import kafka.consumer.SimpleConsumer
 
 import scala.collection.mutable
+import scala.collection.immutable._
 import scala.language.postfixOps
 import scala.util.Try
 
@@ -71,8 +72,9 @@ with ActorLoggingAdapter with ZookeeperAdapter with ZookeeperEventAdapter {
     case msg: DownSources => downSources = msg.sources
   }
 
-  def getPartitionLeaders: Set[PartitionAssignment] = {
-    val partitionsByTopic = new mutable.HashSet[PartitionAssignment]()
+  def getPartitionLeaders: SortedSet[PartitionAssignment] = {
+    var partitionsByTopic =  new TreeSet[PartitionAssignment]()(Ordering.by[PartitionAssignment, String]
+      (a => a.topic + a.cluster + a.partition))
     val topicMetaRequest = new TopicMetadataRequest(versionId = 1, correlationId = 0, clientId = clientId, topics = Seq())
 
     // Get our partition meta data for the configured topics
@@ -90,7 +92,8 @@ with ActorLoggingAdapter with ZookeeperAdapter with ZookeeperEventAdapter {
             partMeta.leader match {
               case Some(broker) =>
                 log.debug(s"Leader found for topic [${topicMeta.topic}:${partMeta.partitionId}]: ${broker.host}")
-                partitionsByTopic.add(PartitionAssignment(topicMeta.topic, partMeta.partitionId, brokers(broker.host).cluster, broker.host))
+                partitionsByTopic +=
+                  PartitionAssignment(topicMeta.topic, partMeta.partitionId, brokers(broker.host).cluster, broker.host)
               case None =>
                 log.error(s"No leader found for topic [${topicMeta.topic}:${partMeta.partitionId}]")
             }
@@ -113,6 +116,6 @@ with ActorLoggingAdapter with ZookeeperAdapter with ZookeeperEventAdapter {
       log.debug("Successfully processed brokers {}", brokers.toString())
       context.parent ! HealthComponent(actorName, ComponentState.NORMAL, "Successfully fetched broker data")
     }
-    partitionsByTopic.toSet[PartitionAssignment]
+    partitionsByTopic
   }
 }
