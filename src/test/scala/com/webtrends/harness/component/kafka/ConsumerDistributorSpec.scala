@@ -1,14 +1,11 @@
 package com.webtrends.harness.component.kafka
 
-import java.net.InetAddress
-
 import akka.actor._
 import akka.testkit.TestProbe
 import com.webtrends.harness.component.kafka.KafkaConsumerCoordinator.{BroadcastToWorkers, TopicPartitionResp}
 import com.webtrends.harness.component.kafka.actor.AssignmentDistributorLeader
 import com.webtrends.harness.component.kafka.actor.KafkaTopicManager.TopicPartitionReq
 import com.webtrends.harness.component.kafka.config.KafkaTestConfig
-import com.webtrends.harness.component.zookeeper.{ZookeeperActor, ZookeeperService}
 import com.webtrends.harness.health.{ComponentState, HealthComponent}
 import com.webtrends.harness.service.messages.CheckHealth
 import net.liftweb.json.Serialization
@@ -18,7 +15,7 @@ import org.specs2.mutable.SpecificationLike
 import org.specs2.runner.JUnitRunner
 import org.specs2.time.NoTimeConversions
 
-import scala.collection.mutable
+import scala.collection.immutable._
 import scala.concurrent.duration._
 
 @RunWith(classOf[JUnitRunner])
@@ -33,7 +30,8 @@ class ConsumerDistributorSpec
   val b0 = "broker0"
   val b1 = "broker1"
   val topic = "scsRawHits"
-  val topicPartData = Set(PartitionAssignment(topic, 0, "G", b0), PartitionAssignment(topic, 1, "G", b0),
+  val topicPartData = SortedSet[PartitionAssignment]()(Ordering.by[PartitionAssignment, String](_.topic)) ++ Set(
+    PartitionAssignment(topic, 0, "G", b0), PartitionAssignment(topic, 1, "G", b0),
     PartitionAssignment(topic, 2, "G", b0), PartitionAssignment(topic, 3, "G", b0), PartitionAssignment(topic, 0, "G", b1),
     PartitionAssignment(topic, 1, "G", b1), PartitionAssignment(topic, 2, "G", b1))
 

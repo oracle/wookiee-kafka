@@ -34,6 +34,7 @@ import net.liftweb.json.Serialization
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheEvent.Type._
 
 import scala.collection.mutable
+import scala.collection.immutable._
 import scala.concurrent.duration._
 import scala.util.Try
 
@@ -42,7 +43,7 @@ object KafkaConsumerCoordinator {
   def props(sourceProxy: ActorRef) =
     Props(new KafkaConsumerCoordinator(sourceProxy))
 
-  case class TopicPartitionResp(partitionsByTopic: Set[PartitionAssignment])
+  case class TopicPartitionResp(partitionsByTopic: SortedSet[PartitionAssignment])
   case class BroadcastToWorkers(msg: Any)
 }
 

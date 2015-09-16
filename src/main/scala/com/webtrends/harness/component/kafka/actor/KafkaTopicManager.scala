@@ -30,6 +30,7 @@ import kafka.api.TopicMetadataRequest
 import kafka.consumer.SimpleConsumer
 
 import scala.collection.mutable
+import scala.collection.immutable._
 import scala.language.postfixOps
 import scala.util.Try
 
@@ -71,7 +72,7 @@ with ActorLoggingAdapter with ZookeeperAdapter with ZookeeperEventAdapter {
     case msg: DownSources => downSources = msg.sources
   }
 
-  def getPartitionLeaders: Set[PartitionAssignment] = {
+  def getPartitionLeaders: SortedSet[PartitionAssignment] = {
     val partitionsByTopic = new mutable.HashSet[PartitionAssignment]()
     val topicMetaRequest = new TopicMetadataRequest(versionId = 1, correlationId = 0, clientId = clientId, topics = Seq())
 
@@ -113,6 +114,6 @@ with ActorLoggingAdapter with ZookeeperAdapter with ZookeeperEventAdapter {
       log.debug("Successfully processed brokers {}", brokers.toString())
       context.parent ! HealthComponent(actorName, ComponentState.NORMAL, "Successfully fetched broker data")
     }
-    partitionsByTopic.toSet[PartitionAssignment]
+    SortedSet[PartitionAssignment]()(Ordering.by[PartitionAssignment, String](_.topic)) ++ partitionsByTopic
   }
 }
