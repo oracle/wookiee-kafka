@@ -20,7 +20,7 @@
         <scala.artifact.version>2.11</scala.artifact.version>
         <scala.version>${scala.artifact.version}.4</scala.version>
         <scoverage.plugin.version>1.1.1</scoverage.plugin.version>
-        <wookiee.core.version>1.1.4</wookiee.core.version>
+        <wookiee.core.version>1.1.5</wookiee.core.version>
     </properties>
 
     <groupId>com.webtrends</groupId>
