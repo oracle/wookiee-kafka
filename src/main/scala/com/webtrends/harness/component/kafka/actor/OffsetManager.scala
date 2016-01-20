@@ -121,6 +121,7 @@ class OffsetManager(appRoot: String, timeout:Timeout) extends Actor
           } else {
             val offData = OffsetData(result.metadata.getBytes, result.offset)
             originalSender ! OffsetDataResponse(Left(offData))
+            context.parent ! healthy(req.cluster)
           }
         } catch {
           case ex: IOException =>
