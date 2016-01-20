@@ -1,42 +1,97 @@
 package com.webtrends.harness.component.kafka.actor
 
+import java.io.IOException
 import java.nio.charset.{Charset, StandardCharsets}
 
-import akka.actor.{Actor, Props}
+import akka.actor.{Actor, ActorRef, Props}
 import akka.util.Timeout
+import com.webtrends.harness.component.kafka.actor.KafkaTopicManager.BrokerSpec
 import com.webtrends.harness.component.kafka.health.ZKHealthState
+import com.webtrends.harness.component.kafka.util.KafkaSettings
 import com.webtrends.harness.component.zookeeper.ZookeeperAdapter
 import com.webtrends.harness.logging.ActorLoggingAdapter
-import org.apache.zookeeper.KeeperException.NoNodeException
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration._
-import scala.util.{Failure, Success, Try}
+import kafka.api.ConsumerMetadataRequest
+import kafka.common.{OffsetAndMetadata, ErrorMapping, TopicAndPartition}
+import kafka.javaapi._
+import kafka.network.BlockingChannel
+import scala.collection.JavaConversions._
+
 import scala.collection.mutable
+import scala.concurrent.duration._
 
 object OffsetManager {
   def props(appRoot: String, timeout: Timeout = 5 seconds): Props =
     Props(new OffsetManager(appRoot, timeout))
 
-  case class OffsetData(data: Array[Byte]) {
+  case class OffsetData(data: Array[Byte], offset: Long) {
     def asString(charset:Charset = StandardCharsets.UTF_8) = new String(data, charset)
   }
 
-  case class GetOffsetData(path: String)
-  case class StoreOffsetData(path: String, offsetData: OffsetData)
+  case class GetOffsetData(topic: String, cluster: String, partition: Int)
+  case class StoreOffsetData(topic: String, cluster: String, partition: Int, offsetData: OffsetData)
 
   case class OffsetDataResponse(data: Either[OffsetData, Throwable])
 }
 
 class OffsetManager(appRoot: String, timeout:Timeout) extends Actor
-with ActorLoggingAdapter with ZookeeperAdapter {
+  with ActorLoggingAdapter with ZookeeperAdapter with KafkaSettings {
   import OffsetManager._
   implicit val implicitTimeout = timeout
-  val createPaths = new mutable.HashSet[String]
-  val offsetPath = s"$appRoot/offsets"
+
+  val brokers = mutable.HashMap[String, (BlockingChannel, Int, BrokerSpec)]()
+
+  override def preStart(): Unit = {
+    connect()
+    super.preStart()
+  }
+
+  def connect(): Unit = {
+    try {
+      kafkaSources.foreach {
+        case (host, broker) if !brokers.contains(broker.cluster) => refreshBroker(broker)
+      }
+    } catch {
+      case e: IOException =>
+        log.error(s"Exception getting metadata", e)
+    }
+  }
+
+  def refreshBroker(broker: BrokerSpec): Unit = {
+    log.info(s"Creating/Refreshing Broker for cluster: ${broker.cluster}")
+    val oldBroker = brokers.remove(broker.cluster)
+
+    oldBroker.foreach(_._1.disconnect())
+    val cId = oldBroker.map(_._2).getOrElse(0)
+
+    var channel = new BlockingChannel(broker.host, broker.port,
+      BlockingChannel.UseDefaultBufferSize,
+      BlockingChannel.UseDefaultBufferSize,
+      5000 /* read timeout in millis */)
+    channel.connect()
+
+    channel.send(new ConsumerMetadataRequest(pod, ConsumerMetadataRequest.CurrentVersion, cId, clientId))
+    val metadataResponse = ConsumerMetadataResponse.readFrom(channel.receive().buffer)
+
+    if (metadataResponse.errorCode == ErrorMapping.NoError) {
+      val offsetManager = metadataResponse.coordinator
+      // if the coordinator is different, from the above channel's host then reconnect
+      if (offsetManager.host != broker.host) {
+        channel.disconnect()
+        channel = new BlockingChannel(offsetManager.host, offsetManager.port,
+          BlockingChannel.UseDefaultBufferSize,
+          BlockingChannel.UseDefaultBufferSize,
+          5000 /* read timeout in millis */)
+        channel.connect()
+      }
+    } else {
+      // retry (after backoff)
+      log.error(s"Error getting metadata ${metadataResponse.toString()}")
+    }
+    brokers.put(broker.cluster, (channel, cId + 1, broker))
+  }
 
   def receive: Receive = {
     case msg: GetOffsetData => getOffsetState(msg)
-
     case msg: StoreOffsetData => storeOffsetState(msg)
   }
 
@@ -45,46 +100,82 @@ with ActorLoggingAdapter with ZookeeperAdapter {
    */
   def getOffsetState(req: GetOffsetData) = {
     val originalSender = sender()
-    val parent = context.parent
-    //Path to write to zookeeper
-    val path = s"$offsetPath/${req.path}"
-    getData(path).onComplete {
-      case Success(data) =>
-        Try {
-          originalSender ! OffsetDataResponse(Left(OffsetData(data)))
-          parent ! healthy(path)
-        } recover {
-          case ex =>
-            log.error("Error retrieving state from zk", ex)
-            originalSender ! OffsetDataResponse(Right(ex))
-            parent ! unhealthy(path)
+
+    brokers.get(req.cluster) match {
+      case Some(brokerInfo) =>
+        val channel = brokerInfo._1
+        val broker = brokerInfo._3
+        try {
+          val partitions = List(new TopicAndPartition(req.topic, req.partition))
+          val fetchRequest = new OffsetFetchRequest(pod, partitions, 1, brokerInfo._2, clientId)
+
+          channel.send(fetchRequest.underlying)
+          val fetchResponse = OffsetFetchResponse.readFrom(channel.receive().buffer)
+          val result = fetchResponse.offsets.get(partitions.head)
+
+          val offsetFetchErrorCode = result.error
+          if (offsetFetchErrorCode == ErrorMapping.NotCoordinatorForConsumerCode) {
+            errorInRetrieval(broker, s"Coordinator switched for cluster ${broker.cluster}", originalSender)
+          } else if (offsetFetchErrorCode == ErrorMapping.OffsetsLoadInProgressCode) {
+            errorInRetrieval(broker, s"Offset load in progress for cluster ${broker.cluster}", originalSender)
+          } else {
+            val offData = OffsetData(result.metadata.getBytes, result.offset)
+            originalSender ! OffsetDataResponse(Left(offData))
+          }
+        } catch {
+          case ex: IOException =>
+            errorInRetrieval(broker, s"Cluster ${broker.cluster} failed with ${ex.getMessage}", originalSender)
         }
-      case Failure(err) =>
-        err match {
-          case ex: NoNodeException =>
-            originalSender ! OffsetDataResponse(Left(OffsetData(Array.empty[Byte])))
-            parent ! healthy(path)
-          case ex =>
-            log.error("Unable to get state from Zk", ex)
-            originalSender ! OffsetDataResponse(Right(ex))
-            parent ! unhealthy(path)
-        }
+      case None =>
+        log.error(s"No broker found for cluster ${req.cluster}, making one")
+        originalSender ! OffsetDataResponse(Right(new IllegalStateException(s"No broker found for cluster ${req.cluster}")))
+        kafkaSources.get(req.cluster).foreach(refreshBroker)
     }
   }
 
-  def storeOffsetState(req: StoreOffsetData, create: Boolean = false): Unit = {
-    val path = s"$offsetPath/${req.path}"
+  def errorInRetrieval(broker: BrokerSpec, message: String, sender: ActorRef): Unit = {
+    log.error(message)
+    sender ! OffsetDataResponse(Right(new IllegalStateException(message)))
+    context.parent ! unhealthy(broker.cluster)
+    refreshBroker(broker)
+  }
 
-    // ZNode should be create if new and not be ephemeral
-    setDataAsync(path, req.offsetData.data, create = create || !createPaths.contains(path), ephemeral = false)
-    sender() ! OffsetDataResponse(Left(OffsetData(req.offsetData.data)))
-    context.parent ! healthy(path)
-    createPaths.add(path)
+  def storeOffsetState(req: StoreOffsetData, create: Boolean = false): Unit = {
+    val now = System.currentTimeMillis()
+    val partitions = Map(new TopicAndPartition(req.topic, req.partition) ->
+      new OffsetAndMetadata(req.offsetData.offset, new String(req.offsetData.data), now))
+
+    brokers.get(req.cluster) match {
+      case Some(brokerInfo) =>
+        val commitRequest = new OffsetCommitRequest(pod, partitions, brokerInfo._2, clientId, 1)
+        val channel = brokerInfo._1
+
+        try {
+          channel.send(commitRequest.underlying)
+          val commitResponse = OffsetCommitResponse.readFrom(channel.receive().buffer)
+
+          if (commitResponse.hasError) {
+            commitResponse.errors.values().toArray.foreach { partitionErrorCode =>
+              errorInRetrieval(brokerInfo._3, s"Error $partitionErrorCode on cluster ${req.cluster}", sender())
+            }
+          } else {
+            sender() ! OffsetDataResponse(Left(OffsetData(req.offsetData.data, req.offsetData.offset)))
+            context.parent ! healthy(req.cluster)
+          }
+        } catch {
+          case ex: IOException =>
+            errorInRetrieval(brokerInfo._3, s"Error on cluster ${req.cluster}: ${ex.getMessage}", sender())
+        }
+      case None =>
+        log.warn(s"Write error: No broker found for cluster ${req.cluster}, making one")
+        sender() ! OffsetDataResponse(Right(new IllegalStateException(s"No broker found for cluster ${req.cluster}")))
+        kafkaSources.get(req.cluster).foreach(refreshBroker)
+    }
   }
 
   private def unhealthy(path: String) =
-    ZKHealthState(path, healthy = false, s"Failed to fetch offset state $path from ZK")
+    ZKHealthState(path, healthy = false, s"Failed to fetch offset state for cluster $path from Kafka")
 
   private def healthy(path: String) =
-    ZKHealthState(path, healthy = true, s"Successfully fetched state $path from ZK")
+    ZKHealthState(path, healthy = true, s"Successfully fetched state for cluster $path from Kafka")
 }

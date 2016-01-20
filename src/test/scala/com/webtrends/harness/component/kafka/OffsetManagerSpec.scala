@@ -18,7 +18,7 @@ import org.specs2.time.NoTimeConversions
 import scala.concurrent.duration._
 
 
-@RunWith(classOf[JUnitRunner])
+//@RunWith(classOf[JUnitRunner])
 class OffsetManagerSpec extends SpecificationLike with NoTimeConversions {
   import OffsetManager._
   import TestUtil.ZkHelper
@@ -49,11 +49,9 @@ class OffsetManagerSpec extends SpecificationLike with NoTimeConversions {
   "Offset Manager " should {
 
     "store some data " in {
-
-      probe.send(offsetActor, StoreOffsetData(myPath, OffsetData(data.getBytes(StandardCharsets.UTF_8))))
+      probe.send(offsetActor, StoreOffsetData("topic1", "cluster", 0, OffsetData(data.getBytes(StandardCharsets.UTF_8), 5L)))
 
       val result = probe.receiveOne(timeout).asInstanceOf[OffsetDataResponse]
-
 
       log.info("Result {}", result)
       result.data must beLeft
@@ -62,23 +60,21 @@ class OffsetManagerSpec extends SpecificationLike with NoTimeConversions {
 
 
     "be able to get some data" in {
-      probe.send(offsetActor, GetOffsetData(myPath))
+      probe.send(offsetActor, GetOffsetData("topic1", "cluster", 0))
 
       val result = probe.receiveOne(timeout).asInstanceOf[OffsetDataResponse]
 
-      result.data must beLeft;
+      result.data must beLeft
       result.data.left.get.asString() must beEqualTo(data)
     }
 
 
     "be successful on noNodeException " in {
-
-      probe.send(offsetActor, GetOffsetData("doesn't exists"))
+      probe.send(offsetActor, GetOffsetData("topic2", "cluster2", 0))
 
       val r = probe.receiveOne(timeout).asInstanceOf[OffsetDataResponse]
 
-      r.data must beLeft;
-
+      r.data must beLeft
       r.data.left.get.data must be empty
     }
   }
@@ -88,5 +84,4 @@ class OffsetManagerSpec extends SpecificationLike with NoTimeConversions {
     zkHelper.shutdown()
     system.shutdown()
   }
-
 }
