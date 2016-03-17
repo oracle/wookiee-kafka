@@ -23,10 +23,11 @@ import java.util.concurrent.TimeUnit
 
 import com.webtrends.harness.component.kafka.actor.KafkaWriter
 import com.webtrends.harness.component.kafka.actor.KafkaWriter.EventToWrite
+import com.webtrends.harness.component.kafka.util.KafkaUtil
 import com.webtrends.harness.health.ComponentState.ComponentState
 import com.webtrends.harness.health.{ComponentState, HealthComponent}
 import com.webtrends.harness.service.messages.CheckHealth
-import org.apache.kafka.clients.producer.RecordMetadata
+import org.apache.kafka.clients.producer.{KafkaProducer, RecordMetadata}
 import scala.concurrent.{blocking, Future}
 import scala.concurrent.duration._
 import scala.util.Try
@@ -88,11 +89,12 @@ trait KafkaWriterHealthCheck { this: KafkaWriter =>
               if (currentHealth.isEmpty || currentHealth.get.state != ComponentState.NORMAL) {
                 self ! HealthComponent(healthName, ComponentState.NORMAL, "Write successful")
               }
-            }
-            catch {
+            } catch {
               case ex: Exception =>
-                log.error("Unable to produce data. Marking producer as unhealthy", ex)
+                log.error("Unable to produce data. Marking producer as unhealthy, refreshing producer", ex)
                 self ! HealthComponent(healthName, ComponentState.CRITICAL, ex.getMessage)
+                dataProducer.close()
+                dataProducer = new KafkaProducer[String, Array[Byte]](KafkaUtil.configToProps(kafkaConfig.getConfig("producer")))
             }
             inProcessSend = None // Note that this may be executed in a different thread than the current message being processed
           }
