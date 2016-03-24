@@ -23,7 +23,7 @@ import java.util.Properties
 
 import com.typesafe.config.{Config, ConfigValueType}
 import kafka.api.{PartitionOffsetRequestInfo, _}
-import kafka.common.TopicAndPartition
+import kafka.common.{ErrorMapping, TopicAndPartition}
 import kafka.consumer.SimpleConsumer
 
 object KafkaUtil {
@@ -64,18 +64,24 @@ object KafkaUtil {
 
     val range:Array[Long] = new Array(2)
 
-    range(0) = startOffsets.head
+    range(0) = Math.min(startOffsets.head, endOffsets.head)
     range(1) = endOffsets.head
 
-    if (range(1) < range(0)) {
-      range(0) = range(1)
-    }
-    if (desiredStartOffset > range(0) && desiredStartOffset < range(1)) {
-      range(0) = desiredStartOffset
-    }
-
-    range(0)
-
+    if (desiredStartOffset > range(0) || desiredStartOffset <= range(1)) {
+      var foundOffset = false
+      var currentOffset = desiredStartOffset
+      while (!foundOffset && currentOffset < range(1)) {
+        val req = new FetchRequestBuilder()
+          .clientId(clientName)
+          .addFetch(topic, partition, currentOffset, 1)
+          .build()
+        val fetchResponse = consumer.fetch(req)
+        if (!fetchResponse.hasError) {
+          foundOffset = true
+        } else currentOffset += 1
+      }
+      currentOffset
+    } else range(0)
   }
 
   def getSmallestAvailableOffset(consumer: SimpleConsumer, topic: String, partition: Int): Long = {

@@ -47,7 +47,7 @@ class KafkaWriter extends Actor
   lazy val totalEvents = Meter("total-events-per-second")
   lazy val totalBytesPerSecond = Meter("total-bytes-per-second")
 
-  var dataProducer = new KafkaProducer[String, Array[Byte]](KafkaUtil.configToProps(kafkaConfig.getConfig("producer")))
+  val dataProducer = new KafkaProducer[String, Array[Byte]](KafkaUtil.configToProps(kafkaConfig.getConfig("producer")))
   var partitionKey = 0L
   val evenPartitionDistribution = Try { kafkaConfig.getBoolean("even-partition-distribution") } getOrElse true
 
