@@ -22,11 +22,15 @@ package com.webtrends.harness.component.kafka.util
 import java.util.Properties
 
 import com.typesafe.config.{Config, ConfigValueType}
+import com.webtrends.harness.component.kafka.KafkaManager
 import kafka.api.{PartitionOffsetRequestInfo, _}
-import kafka.common.{ErrorMapping, TopicAndPartition}
+import kafka.common.TopicAndPartition
 import kafka.consumer.SimpleConsumer
+import org.slf4j.LoggerFactory
 
 object KafkaUtil {
+  val log = LoggerFactory.getLogger(classOf[KafkaManager])
+
   def getFetchRequest(clientName: String, topic: String, part: Int, offset: Long, fetchSize: Int): FetchRequest = {
     val req: FetchRequest = new FetchRequestBuilder().clientId(clientName).addFetch(topic, part, offset, fetchSize).build()
     req
@@ -69,6 +73,7 @@ object KafkaUtil {
 
     if (desiredStartOffset > range(0) || desiredStartOffset <= range(1)) {
       var foundOffset = false
+      log.warn(s"Desired offset $desiredStartOffset seems to be an empty segment, finding next safe area")
       var currentOffset = desiredStartOffset
       while (!foundOffset && currentOffset < range(1)) {
         val req = new FetchRequestBuilder()
@@ -80,8 +85,12 @@ object KafkaUtil {
           foundOffset = true
         } else currentOffset += 1
       }
+      log.info(s"Was safe area found: $foundOffset, new offset: $currentOffset")
       currentOffset
-    } else range(0)
+    } else {
+      log.info(s"Offset before or after range in kafka, starting for beginning ${range(0)}")
+      range(0)
+    }
   }
 
   def getSmallestAvailableOffset(consumer: SimpleConsumer, topic: String, partition: Int): Long = {
