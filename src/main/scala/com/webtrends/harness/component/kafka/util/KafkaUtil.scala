@@ -75,6 +75,7 @@ object KafkaUtil {
       var foundOffset = false
       log.warn(s"Desired offset $desiredStartOffset seems to be an empty segment, finding next safe area")
       var currentOffset = desiredStartOffset
+      val onePercent = Math.max(Math.round((range(1) - desiredStartOffset) * .01), 1)
       while (!foundOffset && currentOffset < range(1)) {
         val req = new FetchRequestBuilder()
           .clientId(clientName)
@@ -83,7 +84,7 @@ object KafkaUtil {
         val fetchResponse = consumer.fetch(req)
         if (!fetchResponse.hasError) {
           foundOffset = true
-        } else currentOffset += 1
+        } else currentOffset += onePercent
       }
       log.info(s"Was safe area found: $foundOffset, new offset: $currentOffset")
       currentOffset
