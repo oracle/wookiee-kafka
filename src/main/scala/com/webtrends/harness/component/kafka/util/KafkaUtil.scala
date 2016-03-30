@@ -71,7 +71,7 @@ object KafkaUtil {
     range(0) = Math.min(startOffsets.head, endOffsets.head)
     range(1) = endOffsets.head
 
-    if (desiredStartOffset > range(0) || desiredStartOffset <= range(1)) {
+    if (desiredStartOffset > range(0) && desiredStartOffset <= range(1)) {
       var foundOffset = false
       log.warn(s"Desired offset $desiredStartOffset seems to be an empty segment, finding next safe area")
       var currentOffset = desiredStartOffset
