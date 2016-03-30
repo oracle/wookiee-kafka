@@ -87,7 +87,7 @@ object KafkaUtil {
         } else currentOffset += onePercent
       }
       log.info(s"Was safe area found: $foundOffset, new offset: $currentOffset")
-      currentOffset
+      Math.min(currentOffset, range(1))
     } else {
       log.info(s"Offset before or after range in kafka, starting for beginning ${range(0)}")
       range(0)
