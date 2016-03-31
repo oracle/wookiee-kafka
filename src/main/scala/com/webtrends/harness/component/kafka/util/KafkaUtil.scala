@@ -71,10 +71,11 @@ object KafkaUtil {
     range(0) = Math.min(startOffsets.head, endOffsets.head)
     range(1) = endOffsets.head
 
-    if (desiredStartOffset > range(0) || desiredStartOffset <= range(1)) {
+    if (desiredStartOffset > range(0) && desiredStartOffset <= range(1)) {
       var foundOffset = false
       log.warn(s"Desired offset $desiredStartOffset seems to be an empty segment, finding next safe area")
       var currentOffset = desiredStartOffset
+      val onePercent = Math.max(Math.round((range(1) - desiredStartOffset) * .01), 1)
       while (!foundOffset && currentOffset < range(1)) {
         val req = new FetchRequestBuilder()
           .clientId(clientName)
@@ -83,10 +84,10 @@ object KafkaUtil {
         val fetchResponse = consumer.fetch(req)
         if (!fetchResponse.hasError) {
           foundOffset = true
-        } else currentOffset += 1
+        } else currentOffset += onePercent
       }
       log.info(s"Was safe area found: $foundOffset, new offset: $currentOffset")
-      currentOffset
+      Math.min(currentOffset, range(1))
     } else {
       log.info(s"Offset before or after range in kafka, starting for beginning ${range(0)}")
       range(0)
