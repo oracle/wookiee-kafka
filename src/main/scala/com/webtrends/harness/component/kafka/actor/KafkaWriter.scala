@@ -68,23 +68,22 @@ class KafkaWriter extends Actor
 
   def sendData(topic: String, eventMessages: Seq[Array[Byte]], ackId: String = ""): Either[String, Throwable] ={
     Try {
-      var bytes = 0L
-      val keyedMessages = eventMessages.withFilter(_.length > 0).map { it =>
-        bytes += it.length
-        val message = keyedMessage(topic, it)
+      //iterator vs. foreach for performance gains
+      val itr = eventMessages.iterator
+      while (itr.hasNext) {
+        val msgData = itr.next()
+        if (msgData.length > 0) {
+          val message = keyedMessage(topic, msgData)
 
-        // If the Kafka target is down completely, the Kafka client provides no feedback.
-        // The callback is never called and a get on the returned java Future will block indefinitely.
-        // Handling this by waiting on the
-        val productionFuture = dataProducer.send(message)
-        monitorSendHealth(productionFuture)
+          // If the Kafka target is down completely, the Kafka client provides no feedback.
+          // The callback is never called and a get on the returned java Future will block indefinitely.
+          // Handling this by waiting on the
+          val productionFuture = dataProducer.send(message)
+          monitorSendHealth(productionFuture)
 
-        message
-      }
-
-      if (keyedMessages.nonEmpty) {
-        totalEvents.mark(keyedMessages.size)
-        totalBytesPerSecond.mark(bytes)
+          totalBytesPerSecond.mark(msgData.length)
+          totalEvents.mark(1)
+        }
       }
 
       if (currentHealth.isEmpty || currentHealth.get.state == ComponentState.NORMAL) {
