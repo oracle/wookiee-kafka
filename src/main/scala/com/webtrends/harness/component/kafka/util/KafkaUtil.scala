@@ -37,43 +37,16 @@ object KafkaUtil {
   }
 
   def getDesiredAvailableOffset(consumer: SimpleConsumer, topic: String, partition: Int, desiredStartOffset: Long, clientName: String): Long = {
-    val topicAndPartition: TopicAndPartition = new TopicAndPartition(topic, partition)
 
-    val startOffsetRequest = OffsetRequest(
-      Map(topicAndPartition -> PartitionOffsetRequestInfo(OffsetRequest.EarliestTime, 1)),
-      replicaId = 0) //TODO: determine replicaId, if needed?
+    val smallest = getSmallestAvailableOffset(consumer, topic, partition)
+    val largest = getLargestAvailableOffset(consumer, topic, partition)
 
-    val startResponse: OffsetResponse = consumer.getOffsetsBefore(startOffsetRequest)
-    if (startResponse.hasError) {
-      throw new IllegalStateException("Kafka response error getting earliest offsets" )
-    }
-    val startOffsets: Seq[Long] = startResponse.partitionErrorAndOffsets(topicAndPartition).offsets
-    if (startOffsets.length != 1) {
-      throw new IllegalStateException(s"Expect one earliest offset but got [${startOffsets.length}]")
-    }
+    val range: Array[Long] = Array(Math.min(smallest, largest), largest)
 
-
-    val endOffsetRequest = OffsetRequest(
-      Map(topicAndPartition -> PartitionOffsetRequestInfo(OffsetRequest.LatestTime, 1)),
-      replicaId = 0)  //TODO: determine replicaId, if needed?
-
-    val endResponse: OffsetResponse = consumer.getOffsetsBefore(endOffsetRequest)
-    if (endResponse.hasError) {
-      throw new IllegalStateException("Kafka response error getting latest offsets" ) //+ startResponse.error())
-    }
-    val endOffsets: Seq[Long] = endResponse.partitionErrorAndOffsets(topicAndPartition).offsets
-    if (endOffsets.length != 1) {
-      throw new IllegalStateException(s"Expect one latest offset but got [${endOffsets.length}]")
-    }
-
-    val range:Array[Long] = new Array(2)
-
-    range(0) = Math.min(startOffsets.head, endOffsets.head)
-    range(1) = endOffsets.head
-
+    log.warn(s"$topic:$partition Desired offset $desiredStartOffset out of range. Min: ${range(0)} max: ${range(1)}")
     if (desiredStartOffset > range(0) && desiredStartOffset <= range(1)) {
       var foundOffset = false
-      log.warn(s"Desired offset $desiredStartOffset seems to be an empty segment, finding next safe area")
+      log.warn(s"$topic:$partition Desired offset $desiredStartOffset seems to be an empty segment, finding next safe area")
       var currentOffset = desiredStartOffset
       val onePercent = Math.max(Math.round((range(1) - desiredStartOffset) * .01), 1)
       while (!foundOffset && currentOffset < range(1)) {
@@ -86,10 +59,14 @@ object KafkaUtil {
           foundOffset = true
         } else currentOffset += onePercent
       }
-      log.info(s"Was safe area found: $foundOffset, new offset: $currentOffset")
+      log.warn(s"$topic:$partition Was safe area found: $foundOffset, new offset: $currentOffset")
       Math.min(currentOffset, range(1))
-    } else {
-      log.info(s"Offset before or after range in kafka, starting for beginning ${range(0)}")
+    } else if (desiredStartOffset > range(1)) {
+      log.warn(s"$topic:$partition Offset $desiredStartOffset after range in kafka, starting from latest offset ${range(1)}")
+      range(1)
+    }
+    else {
+      log.warn(s"$topic:$partition Offset $desiredStartOffset before range in kafka, starting from earliest offset ${range(0)}")
       range(0)
     }
   }
