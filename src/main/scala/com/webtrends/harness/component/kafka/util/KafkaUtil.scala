@@ -41,15 +41,13 @@ object KafkaUtil {
     val smallest = getSmallestAvailableOffset(consumer, topic, partition)
     val largest = getLargestAvailableOffset(consumer, topic, partition)
 
-    val range: Array[Long] = Array(Math.min(smallest, largest), largest)
-
-    log.warn(s"$topic:$partition Desired offset $desiredStartOffset out of range. Min: ${range(0)} max: ${range(1)}")
-    if (desiredStartOffset > range(0) && desiredStartOffset <= range(1)) {
+    log.warn(s"$topic:$partition Desired offset $desiredStartOffset out of range. Min: $smallest max: $largest")
+    if (desiredStartOffset > smallest && desiredStartOffset <= largest) {
       var foundOffset = false
       log.warn(s"$topic:$partition Desired offset $desiredStartOffset seems to be an empty segment, finding next safe area")
       var currentOffset = desiredStartOffset
-      val onePercent = Math.max(Math.round((range(1) - desiredStartOffset) * .01), 1)
-      while (!foundOffset && currentOffset < range(1)) {
+      val onePercent = Math.max(Math.round((largest - desiredStartOffset) * .01), 1)
+      while (!foundOffset && currentOffset < largest) {
         val req = new FetchRequestBuilder()
           .clientId(clientName)
           .addFetch(topic, partition, currentOffset, 1)
@@ -60,14 +58,14 @@ object KafkaUtil {
         } else currentOffset += onePercent
       }
       log.warn(s"$topic:$partition Was safe area found: $foundOffset, new offset: $currentOffset")
-      Math.min(currentOffset, range(1))
-    } else if (desiredStartOffset > range(1)) {
-      log.warn(s"$topic:$partition Offset $desiredStartOffset after range in kafka, starting from latest offset ${range(1)}")
-      range(1)
+      Math.min(currentOffset, largest)
+    } else if (desiredStartOffset > largest) {
+      log.warn(s"$topic:$partition Offset $desiredStartOffset after range in kafka, starting from latest offset $largest")
+      largest
     }
     else {
-      log.warn(s"$topic:$partition Offset $desiredStartOffset before range in kafka, starting from earliest offset ${range(0)}")
-      range(0)
+      log.warn(s"$topic:$partition Offset $desiredStartOffset before range in kafka, starting from earliest offset $smallest")
+      smallest
     }
   }
 
