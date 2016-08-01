@@ -20,7 +20,7 @@
         <scala.artifact.version>2.11</scala.artifact.version>
         <scala.version>${scala.artifact.version}.4</scala.version>
         <scoverage.plugin.version>1.1.1</scoverage.plugin.version>
-        <wookiee.core.version>1.1.13</wookiee.core.version>
+        <wookiee.core.version>1.1.14</wookiee.core.version>
         <wookiee.zookeeper.version>1.0.9</wookiee.zookeeper.version>
         <wookiee.metrics.version>1.0.7</wookiee.metrics.version>
     </properties>
