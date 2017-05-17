@@ -1,25 +1,13 @@
 package com.webtrends.harness.component.kafka.actor
 
+import com.webtrends.harness.component.kafka.KafkaConsumerCoordinator.TopicPartitionResp
 import com.webtrends.harness.component.kafka.actor.AssignmentDistributorLeader.PartitionAssignment
-import com.webtrends.harness.health.ComponentState
 import org.junit.runner.RunWith
-import akka.actor._
-import akka.testkit.TestProbe
-import com.webtrends.harness.component.kafka.KafkaConsumerCoordinator.{BroadcastToWorkers, TopicPartitionResp}
-import com.webtrends.harness.component.kafka.actor.AssignmentDistributorLeader
-import com.webtrends.harness.component.kafka.actor.KafkaTopicManager.TopicPartitionReq
-import com.webtrends.harness.component.kafka.config.KafkaTestConfig
-import com.webtrends.harness.health.{ComponentState, HealthComponent}
-import com.webtrends.harness.service.messages.CheckHealth
-import net.liftweb.json.Serialization
-import org.junit.runner.RunWith
-import org.slf4j.LoggerFactory
 import org.specs2.mutable.SpecificationLike
 import org.specs2.runner.JUnitRunner
 import org.specs2.time.NoTimeConversions
 
 import scala.collection.immutable._
-import scala.concurrent.duration._
 
 
 @RunWith(classOf[JUnitRunner])

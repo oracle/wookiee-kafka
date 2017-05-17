@@ -4,17 +4,14 @@ import java.nio.charset.StandardCharsets
 
 import akka.actor.ActorSystem
 import akka.testkit.TestProbe
-import com.typesafe.config.{ConfigFactory, Config}
 import com.webtrends.harness.component.kafka.actor.OffsetManager
 import com.webtrends.harness.component.kafka.config.KafkaTestConfig
-import com.webtrends.harness.component.zookeeper.ZookeeperActor
-import com.webtrends.harness.component.zookeeper.config.ZookeeperSettings
-import org.apache.curator.test.TestingServer
 import org.junit.runner.RunWith
-import org.slf4j.{LoggerFactory, Logger}
+import org.slf4j.{Logger, LoggerFactory}
 import org.specs2.mutable.SpecificationLike
 import org.specs2.runner.JUnitRunner
 import org.specs2.time.NoTimeConversions
+
 import scala.concurrent.duration._
 
 
@@ -86,7 +83,7 @@ class OffsetManagerSpec extends SpecificationLike with NoTimeConversions {
   step {
     system.stop(offsetActor)
     zkHelper.shutdown()
-    system.shutdown()
+    system.terminate()
   }
 
 }
