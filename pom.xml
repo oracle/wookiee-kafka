@@ -16,6 +16,7 @@
         <release.type>SNAPSHOT</release.type>
         <build>${build.number}</build>
         <build-artifact-name>${project.artifactId}-${project.version}</build-artifact-name>
+        <kafka.version>0.10.2.1</kafka.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <scala.artifact.version>2.11</scala.artifact.version>
         <scala.version>${scala.artifact.version}.11</scala.version>
@@ -171,12 +172,12 @@
         <dependency>
             <groupId>org.apache.kafka</groupId>
             <artifactId>kafka_${scala.artifact.version}</artifactId>
-            <version>0.8.2.1</version>
+            <version>${kafka.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.kafka</groupId>
             <artifactId>kafka-clients</artifactId>
-            <version>0.8.2.1</version>
+            <version>${kafka.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
