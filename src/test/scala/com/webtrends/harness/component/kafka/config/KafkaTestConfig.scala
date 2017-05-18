@@ -54,7 +54,7 @@ object KafkaTestConfig {
         wookiee-zookeeper {
           datacenter = "Lab"
           pod = "Tests"
-          quorum = "gzoo01.staging.dmz"
+          quorum = "127.0.0.1"
           session-timeout = 30s
           connection-timeout = 30s
           retry-sleep = 5s
