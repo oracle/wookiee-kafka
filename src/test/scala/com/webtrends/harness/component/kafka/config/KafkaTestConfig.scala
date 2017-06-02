@@ -48,6 +48,13 @@ object KafkaTestConfig {
               fetch-timeout-millis = 501
             }
           }
+          producer {
+            bootstrap.servers = "127.0.0.1:9092"
+            acks = 1
+            linger.ms = 1000
+            compression.type = "gzip"
+            retry.backoff.ms = 3000
+          }
           worker-class = "com.webtrends.harness.component.kafka.actor.TestPartitionWorker"
         }
 
