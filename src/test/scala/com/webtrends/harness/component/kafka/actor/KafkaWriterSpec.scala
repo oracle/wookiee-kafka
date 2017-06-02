@@ -38,6 +38,8 @@ class KafkaWriterSpec extends  SpecificationLike {
   val duration = Duration(5, SECONDS)
   val msgData = "msg".getBytes("UTF-8")
 
+  sequential
+
   "KafkaWriter" should {
     "honor msg key" in {
       val msgKey = "messageKey"
