@@ -53,7 +53,9 @@ class KafkaWriter extends Actor
   lazy val totalEvents = Meter("total-events-per-second")
   lazy val totalBytesPerSecond = Meter("total-bytes-per-second")
 
-  val dataProducer = new KafkaProducer[String, Array[Byte]](KafkaUtil.configToProps(kafkaConfig.getConfig("producer")))
+  val dataProducer = newProducer
+
+  def newProducer = new KafkaProducer[String, Array[Byte]](KafkaUtil.configToProps(kafkaConfig.getConfig("producer")))
 
   override def postStop() = {
     log.info("Stopping Kafka Writer")

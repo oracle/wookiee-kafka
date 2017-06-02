@@ -18,6 +18,12 @@ class KafkaWriterTester extends KafkaWriter {
     case TestRequest(message) =>
       sender ! TestResponse(keyedMessage(message))
   }
+
+  override def postStop() = {
+
+  }
+
+  override  def newProducer = null
 }
 
 object KafkaWriterTester {
