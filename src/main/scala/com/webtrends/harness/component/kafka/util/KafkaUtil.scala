@@ -26,6 +26,8 @@ import com.webtrends.harness.component.kafka.KafkaManager
 import kafka.api.{PartitionOffsetRequestInfo, _}
 import kafka.common.TopicAndPartition
 import kafka.consumer.SimpleConsumer
+import kafka.utils.ZkUtils
+import org.I0Itec.zkclient.{ZkClient, ZkConnection}
 import org.slf4j.LoggerFactory
 
 object KafkaUtil {
@@ -34,6 +36,22 @@ object KafkaUtil {
   def getFetchRequest(clientName: String, topic: String, part: Int, offset: Long, fetchSize: Int): FetchRequest = {
     val req: FetchRequest = new FetchRequestBuilder().clientId(clientName).addFetch(topic, part, offset, fetchSize).build()
     req
+  }
+
+  def getPartitionsForTopic(topic: String, zkQuorum: String): Int = {
+    var zkUtils: Option[ZkUtils] = None
+    try {
+      val zkClient = new ZkClient(zkQuorum)
+      val zkConnection = new ZkConnection(zkQuorum)
+      zkUtils = Some(new ZkUtils(zkClient, zkConnection, false))
+      zkUtils.get.getPartitionsForTopics(Seq(topic)).size
+    }
+    finally {
+      zkUtils match {
+        case Some(utils) => utils.close()
+        case _ =>
+      }
+    }
   }
 
   def getDesiredAvailableOffset(consumer: SimpleConsumer, topic: String, partition: Int, desiredStartOffset: Long, clientName: String): Long = {
