@@ -22,12 +22,13 @@ package com.webtrends.harness.component.kafka.health
 import java.util.concurrent.TimeUnit
 
 import com.webtrends.harness.component.kafka.actor.KafkaWriter
-import com.webtrends.harness.component.kafka.actor.KafkaWriter.EventToWrite
+import com.webtrends.harness.component.kafka.actor.KafkaWriter.{KafkaMessage, MessageToWrite}
 import com.webtrends.harness.health.ComponentState.ComponentState
 import com.webtrends.harness.health.{ComponentState, HealthComponent}
 import com.webtrends.harness.service.messages.CheckHealth
 import org.apache.kafka.clients.producer.RecordMetadata
-import scala.concurrent.{blocking, Future}
+
+import scala.concurrent.{Future, blocking}
 import scala.concurrent.duration._
 import scala.util.Try
 
@@ -48,7 +49,7 @@ trait KafkaWriterHealthCheck { this: KafkaWriter =>
     Try { kafkaConfig.getConfig("producer").getInt("produce-timeout-millis") }.getOrElse(10000)
 
   // Schedule a regular send to detect changes even if no data is flowing through
-  val healthMessage = EventToWrite("producer_health", "Healthy".getBytes("utf-8"))
+  val healthMessage = MessageToWrite(KafkaMessage("producer_health", "Healthy".getBytes("utf-8"), None, None))
   val scheduledHealthProduce = context.system.scheduler.schedule(0 seconds, 5 seconds, self, healthMessage)(scala.concurrent.ExecutionContext.Implicits.global)
 
   def healthReceive: Receive = {
