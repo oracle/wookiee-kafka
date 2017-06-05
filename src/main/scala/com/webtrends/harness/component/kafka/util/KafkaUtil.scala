@@ -26,8 +26,8 @@ import com.webtrends.harness.component.kafka.KafkaManager
 import kafka.api.{PartitionOffsetRequestInfo, _}
 import kafka.common.TopicAndPartition
 import kafka.consumer.SimpleConsumer
-import kafka.utils.ZkUtils
-import org.I0Itec.zkclient.{ZkClient, ZkConnection}
+import org.apache.curator.framework.{CuratorFramework, CuratorFrameworkFactory}
+import org.apache.curator.retry.RetryNTimes
 import org.slf4j.LoggerFactory
 
 object KafkaUtil {
@@ -38,19 +38,34 @@ object KafkaUtil {
     req
   }
 
-  def getPartitionsForTopic(topic: String, zkQuorum: String): Int = {
-    var zkUtils: Option[ZkUtils] = None
+  def curatorFramework(zkQuorum: String,
+                       sessionTimeout: Int,
+                       connectionTimeout: Int,
+                       retryCount: Int,
+                       retrySleep: Int): CuratorFramework = {
+    CuratorFrameworkFactory.newClient(
+      zkQuorum,
+      sessionTimeout,
+      connectionTimeout,
+      new RetryNTimes(retryCount, retrySleep))
+  }
+
+
+  def getPartitionsForTopic(topic: String,
+                            zkQuorum: String,
+                            sessionTimeout: Int = 30000,
+                            connectionTimeout: Int = 30000,
+                            retryCount: Int = 3,
+                            retrySleep: Int = 5000): Int = {
+
+    val curator = curatorFramework(zkQuorum, sessionTimeout, connectionTimeout, retryCount, retrySleep)
     try {
-      val zkClient = new ZkClient(zkQuorum)
-      val zkConnection = new ZkConnection(zkQuorum)
-      zkUtils = Some(new ZkUtils(zkClient, zkConnection, false))
-      zkUtils.get.getPartitionsForTopics(Seq(topic)).size
-    }
-    finally {
-      zkUtils match {
-        case Some(utils) => utils.close()
-        case _ =>
-      }
+      curator.start()
+      curator.getZookeeperClient.blockUntilConnectedOrTimedOut
+      val partitions = curator.getChildren.forPath(s"/brokers/topics/$topic/partitions")
+      partitions.size
+    } finally {
+      curator.close()
     }
   }
 
