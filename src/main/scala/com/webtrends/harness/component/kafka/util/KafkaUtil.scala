@@ -56,7 +56,7 @@ object KafkaUtil {
                             sessionTimeout: Int = 30000,
                             connectionTimeout: Int = 30000,
                             retryCount: Int = 3,
-                            retrySleep: Int = 5): Int = {
+                            retrySleep: Int = 5000): Int = {
 
     val curator = curatorFramework(zkQuorum, sessionTimeout, connectionTimeout, retryCount, retrySleep)
     try {
