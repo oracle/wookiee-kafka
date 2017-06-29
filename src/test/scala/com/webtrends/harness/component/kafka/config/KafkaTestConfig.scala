@@ -48,13 +48,20 @@ object KafkaTestConfig {
               fetch-timeout-millis = 501
             }
           }
+          producer {
+            bootstrap.servers = "127.0.0.1:9092"
+            acks = 1
+            linger.ms = 1000
+            compression.type = "gzip"
+            retry.backoff.ms = 3000
+          }
           worker-class = "com.webtrends.harness.component.kafka.actor.TestPartitionWorker"
         }
 
         wookiee-zookeeper {
           datacenter = "Lab"
           pod = "Tests"
-          quorum = "gzoo01.staging.dmz"
+          quorum = "127.0.0.1"
           session-timeout = 30s
           connection-timeout = 30s
           retry-sleep = 5s

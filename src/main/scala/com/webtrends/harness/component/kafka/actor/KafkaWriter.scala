@@ -29,13 +29,19 @@ import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import scala.util.Try
 
 object KafkaWriter {
-  case class EventToWrite(topic: String, event: Array[Byte])
 
-  case class EventsToWrite(topic: String, events: List[Array[Byte]])
+  case class KafkaMessage(topic: String,
+                          data: Array[Byte],
+                          key: Option[String] = None,
+                          partition: Option[Integer] = None)
 
-  case class EventsToWriteWithAck(topic: String, ackId: String, events: Array[Byte]*)
+  case class MessageToWrite(message: KafkaMessage)
 
-  case class EventWriteAck(ackId: Either[String, Throwable])
+  case class MessagesToWrite(messages: List[KafkaMessage])
+
+  case class MessagesToWriteWithAck(ackId: String, messages: KafkaMessage*)
+
+  case class MessageWriteAck(ackId: Either[String, Throwable])
 
   def props(): Props = Props[KafkaWriter]
 }
@@ -47,9 +53,9 @@ class KafkaWriter extends Actor
   lazy val totalEvents = Meter("total-events-per-second")
   lazy val totalBytesPerSecond = Meter("total-bytes-per-second")
 
-  val dataProducer = new KafkaProducer[String, Array[Byte]](KafkaUtil.configToProps(kafkaConfig.getConfig("producer")))
-  var partitionKey = 0L
-  val evenPartitionDistribution = Try { kafkaConfig.getBoolean("even-partition-distribution") } getOrElse true
+  val dataProducer = newProducer
+
+  def newProducer = new KafkaProducer[String, Array[Byte]](KafkaUtil.configToProps(kafkaConfig.getConfig("producer")))
 
   override def postStop() = {
     log.info("Stopping Kafka Writer")
@@ -58,33 +64,32 @@ class KafkaWriter extends Actor
   }
 
   def receive:Receive = healthReceive orElse {
-    case EventToWrite(topic, event) => sendData(topic, Seq(event))
+    case MessageToWrite(message) => sendData(Seq(message))
 
-    case EventsToWrite(topic, events) => sendData(topic, events)
+    case MessagesToWrite(messages) => sendData(messages)
 
-    case msg: EventsToWriteWithAck =>
-      sender() ! EventWriteAck(sendData(msg.topic, msg.events, msg.ackId))
+    case msgsWithAck: MessagesToWriteWithAck =>
+      sender() ! MessageWriteAck(sendData(msgsWithAck.messages, msgsWithAck.ackId))
   }
 
-  def sendData(topic: String, eventMessages: Seq[Array[Byte]], ackId: String = ""): Either[String, Throwable] ={
+  def sendData(eventMessages: Seq[KafkaMessage], ackId: String = ""): Either[String, Throwable] = {
     Try {
-      var bytes = 0L
-      val keyedMessages = eventMessages.withFilter(_.length > 0).map { it =>
-        bytes += it.length
-        val message = keyedMessage(topic, it)
+      //iterator vs. foreach for performance gains
+      val itr = eventMessages.iterator
+      while (itr.hasNext) {
+        val kafkaMessage = itr.next()
+        if (kafkaMessage.data.length > 0) {
+          val message = keyedMessage(kafkaMessage)
 
-        // If the Kafka target is down completely, the Kafka client provides no feedback.
-        // The callback is never called and a get on the returned java Future will block indefinitely.
-        // Handling this by waiting on the
-        val productionFuture = dataProducer.send(message)
-        monitorSendHealth(productionFuture)
+          // If the Kafka target is down completely, the Kafka client provides no feedback.
+          // The callback is never called and a get on the returned java Future will block indefinitely.
+          // Handling this by waiting on the
+          val productionFuture = dataProducer.send(message)
+          monitorSendHealth(productionFuture)
 
-        message
-      }
-
-      if (keyedMessages.nonEmpty) {
-        totalEvents.mark(keyedMessages.size)
-        totalBytesPerSecond.mark(bytes)
+          totalBytesPerSecond.mark(kafkaMessage.data.length)
+          totalEvents.mark(1)
+        }
       }
 
       if (currentHealth.isEmpty || currentHealth.get.state == ComponentState.NORMAL) {
@@ -94,21 +99,17 @@ class KafkaWriter extends Actor
         Right(new IllegalStateException("Producer is not healthy"))
       }
     } recover {
-      case ex:Exception =>
+      case ex: Exception =>
         log.error("Unable To write Event", ex)
         setHealth(ComponentState.CRITICAL, "Last message failed to send")
         Right(ex)
     } get
   }
 
-  private def keyedMessage(topic: String, value: Array[Byte]): ProducerRecord[String, Array[Byte]] = {
-    val keyedMessage =
-      if(evenPartitionDistribution)
-        new ProducerRecord[String, Array[Byte]](topic, partitionKey.toString, value)
-      else
-        new ProducerRecord[String, Array[Byte]](topic, value)
+  protected def keyedMessage(kafkaMessage: KafkaMessage): ProducerRecord[String, Array[Byte]] = {
+    val partition = kafkaMessage.partition.getOrElse(null)
+    val key = kafkaMessage.key.getOrElse(null)
 
-    partitionKey += 1
-    keyedMessage
+    new ProducerRecord[String, Array[Byte]](kafkaMessage.topic, partition, key, kafkaMessage.data)
   }
 }

@@ -25,8 +25,8 @@ class ConsumerDistributorSpec
   private val log = LoggerFactory.getLogger(getClass)
 
   import AssignmentDistributorLeader._
-  import TestUtil.ZkHelper
   import KafkaConsumerDistributor._
+  import TestUtil.ZkHelper
   val b0 = "broker0"
   val b1 = "broker1"
   val topic = "scsRawHits"
@@ -163,7 +163,7 @@ class ConsumerDistributorSpec
     system.stop(coordinator)
     system.stop(kafkaProxy)
     zkHelper.shutdown
-    system.shutdown()
+    system.terminate()
   }
 
 }

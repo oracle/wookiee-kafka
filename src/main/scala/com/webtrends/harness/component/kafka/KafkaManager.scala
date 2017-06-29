@@ -21,6 +21,7 @@ package com.webtrends.harness.component.kafka
 
 import akka.actor.{ActorRef, Props}
 import akka.pattern._
+import akka.routing.FromConfig
 import com.webtrends.harness.app.HarnessActor.{ConfigChange, PrepareForShutdown, SystemReady}
 import com.webtrends.harness.component.Component
 import com.webtrends.harness.component.kafka.actor.{KafkaTopicManager, KafkaWriter}
@@ -93,7 +94,7 @@ class KafkaManager(name: String) extends Component(name) with KafkaSettings {
 
   def startProducer() {
     log.info("Starting producer as wookiee-kafka config contained 'producer' config")
-    producer = Some(context.system.actorOf(Props[KafkaWriter], "producer"))
+    producer = Some(context.actorOf(FromConfig.props(Props(classOf[KafkaWriter])), "producer"))
   }
 
   override def checkHealth: Future[HealthComponent] = {
