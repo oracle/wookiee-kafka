@@ -18,7 +18,7 @@ import org.specs2.time.NoTimeConversions
 import scala.concurrent.duration._
 
 
-//@RunWith(classOf[JUnitRunner])
+@RunWith(classOf[JUnitRunner])
 class OffsetManagerSpec extends SpecificationLike with NoTimeConversions {
   import OffsetManager._
   import TestUtil.ZkHelper
@@ -82,6 +82,6 @@ class OffsetManagerSpec extends SpecificationLike with NoTimeConversions {
   step {
     system.stop(offsetActor)
     zkHelper.shutdown()
-    system.shutdown()
+    system.terminate()
   }
 }

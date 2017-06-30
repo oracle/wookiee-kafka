@@ -75,7 +75,7 @@ with ActorLoggingAdapter with ZookeeperAdapter with ZookeeperEventAdapter {
   def getPartitionLeaders: SortedSet[PartitionAssignment] = {
     var partitionsByTopic =  new TreeSet[PartitionAssignment]()(Ordering.by[PartitionAssignment, String]
       (a => a.topic + a.cluster + a.partition))
-    val topicMetaRequest = new TopicMetadataRequest(versionId = 1, correlationId = 0, clientId = clientId, topics = Seq())
+    val topicMetaRequest = new TopicMetadataRequest(versionId = 0, correlationId = 0, clientId = clientId, topics = Seq())
 
     // Get our partition meta data for the configured topics
     val processedClusters = new mutable.HashSet[String]()
