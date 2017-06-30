@@ -10,12 +10,12 @@ import com.webtrends.harness.component.kafka.health.ZKHealthState
 import com.webtrends.harness.component.kafka.util.KafkaSettings
 import com.webtrends.harness.component.zookeeper.ZookeeperAdapter
 import com.webtrends.harness.logging.ActorLoggingAdapter
-import kafka.api.ConsumerMetadataRequest
-import kafka.common.{OffsetAndMetadata, ErrorMapping, TopicAndPartition}
+import kafka.api.GroupCoordinatorRequest
+import kafka.common.{ErrorMapping, OffsetAndMetadata, OffsetMetadata, TopicAndPartition}
 import kafka.javaapi._
 import kafka.network.BlockingChannel
-import scala.collection.JavaConversions._
 
+import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.concurrent.duration._
 
@@ -48,7 +48,7 @@ class OffsetManager(appRoot: String, timeout:Timeout) extends Actor
   def connect(): Unit = {
     try {
       kafkaSources.foreach {
-        case (host, broker) if !brokers.contains(broker.cluster) => refreshBroker(broker)
+        case (_, broker) if !brokers.contains(broker.cluster) => refreshBroker(broker)
       }
     } catch {
       case e: IOException =>
@@ -69,8 +69,8 @@ class OffsetManager(appRoot: String, timeout:Timeout) extends Actor
       5000 /* read timeout in millis */)
     channel.connect()
 
-    channel.send(new ConsumerMetadataRequest(pod, ConsumerMetadataRequest.CurrentVersion, cId, clientId))
-    val metadataResponse = ConsumerMetadataResponse.readFrom(channel.receive().buffer)
+    channel.send(new GroupCoordinatorRequest(pod, GroupCoordinatorRequest.CurrentVersion, cId, clientId))
+    val metadataResponse = GroupCoordinatorResponse.readFrom(channel.receive().payload())
 
     if (metadataResponse.errorCode == ErrorMapping.NoError) {
       val offsetManager = metadataResponse.coordinator
@@ -91,14 +91,15 @@ class OffsetManager(appRoot: String, timeout:Timeout) extends Actor
   }
 
   def receive: Receive = {
-    case msg: GetOffsetData => getOffsetState(msg)
+    case msg: GetOffsetData => retrieveOffsetState(msg)
     case msg: StoreOffsetData => storeOffsetState(msg)
+    case msg: BrokerSpec => refreshBroker(msg)
   }
 
   /**
    * Get the state from zk and send back offset data response
    */
-  def getOffsetState(req: GetOffsetData) = {
+  def retrieveOffsetState(req: GetOffsetData) = {
     val originalSender = sender()
 
     brokers.get(req.cluster) match {
@@ -106,11 +107,11 @@ class OffsetManager(appRoot: String, timeout:Timeout) extends Actor
         val channel = brokerInfo._1
         val broker = brokerInfo._3
         try {
-          val partitions = List(new TopicAndPartition(req.topic, req.partition))
+          val partitions = List(TopicAndPartition(req.topic, req.partition))
           val fetchRequest = new OffsetFetchRequest(pod, partitions, 1, brokerInfo._2, clientId)
 
           channel.send(fetchRequest.underlying)
-          val fetchResponse = OffsetFetchResponse.readFrom(channel.receive().buffer)
+          val fetchResponse = OffsetFetchResponse.readFrom(channel.receive().payload())
           val result = fetchResponse.offsets.get(partitions.head)
 
           val offsetFetchErrorCode = result.error
@@ -129,7 +130,7 @@ class OffsetManager(appRoot: String, timeout:Timeout) extends Actor
         }
       case None =>
         log.error(s"No broker found for cluster ${req.cluster}, making one")
-        originalSender ! OffsetDataResponse(Right(new IllegalStateException(s"No broker found for cluster ${req.cluster}")))
+        originalSender ! OffsetDataResponse(Left(OffsetData(Array(), 0L)))
         kafkaSources.get(req.cluster).foreach(refreshBroker)
     }
   }
@@ -143,8 +144,8 @@ class OffsetManager(appRoot: String, timeout:Timeout) extends Actor
 
   def storeOffsetState(req: StoreOffsetData, create: Boolean = false): Unit = {
     val now = System.currentTimeMillis()
-    val partitions = Map(new TopicAndPartition(req.topic, req.partition) ->
-      new OffsetAndMetadata(req.offsetData.offset, new String(req.offsetData.data), now))
+    val partitions = Map(TopicAndPartition(req.topic, req.partition) ->
+      new OffsetAndMetadata(OffsetMetadata(req.offsetData.offset, new String(req.offsetData.data)), now))
 
     brokers.get(req.cluster) match {
       case Some(brokerInfo) =>
@@ -153,7 +154,7 @@ class OffsetManager(appRoot: String, timeout:Timeout) extends Actor
 
         try {
           channel.send(commitRequest.underlying)
-          val commitResponse = OffsetCommitResponse.readFrom(channel.receive().buffer)
+          val commitResponse = OffsetCommitResponse.readFrom(channel.receive().payload())
 
           if (commitResponse.hasError) {
             commitResponse.errors.values().toArray.foreach { partitionErrorCode =>
