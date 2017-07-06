@@ -1,7 +1,7 @@
 package com.webtrends.harness.component.kafka.actor
 import akka.actor._
 import akka.testkit.TestProbe
-import com.webtrends.harness.component.kafka.actor.KafkaWriter.{KafkaMessage, KafkaMessageByteKey, Message}
+import com.webtrends.harness.component.kafka.actor.KafkaWriter.KafkaMessage
 import com.webtrends.harness.component.kafka.config.KafkaTestConfig
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.junit.runner.RunWith
@@ -10,7 +10,7 @@ import org.specs2.runner.JUnitRunner
 
 import scala.concurrent.duration.{Duration, SECONDS}
 
-case class TestRequest(kafkaMessage: Message)
+case class TestRequest(kafkaMessage: KafkaMessage)
 case class TestResponse(producerRecord: ProducerRecord[Array[Byte], Array[Byte]])
 
 class KafkaWriterTester extends KafkaWriter {
@@ -43,7 +43,7 @@ class KafkaWriterSpec extends  SpecificationLike {
   "KafkaWriter" should {
     "honor msg key" in {
       val msgKey = "messageKey"
-      val kafkaMessage = KafkaMessage("topic", msgData, Some(msgKey))
+      val kafkaMessage = KafkaMessage("topic", msgData, Some(msgKey.getBytes))
 
       probe.send(kafkaWriter, TestRequest(kafkaMessage))
       val response = probe.receiveOne(duration)
@@ -59,7 +59,7 @@ class KafkaWriterSpec extends  SpecificationLike {
 
     "honor msg key as bytes" in {
       val msgKey = "messageKey"
-      val kafkaMessage = KafkaMessageByteKey("topic", msgData, Some(msgKey.getBytes))
+      val kafkaMessage = KafkaMessage("topic", msgData, Some(msgKey.getBytes))
 
       probe.send(kafkaWriter, TestRequest(kafkaMessage))
       val response = probe.receiveOne(duration)

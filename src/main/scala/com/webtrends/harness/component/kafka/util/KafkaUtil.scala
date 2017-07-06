@@ -152,7 +152,7 @@ object KafkaUtil {
         // Ignore other types
       }
     }
-    props.put("key.serializer","org.apache.kafka.common.serialization.StringSerializer")
+    props.put("key.serializer","org.apache.kafka.common.serialization.ByteArraySerializer")
     props.put("value.serializer","org.apache.kafka.common.serialization.ByteArraySerializer")
     props
   }
