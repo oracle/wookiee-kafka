@@ -6,7 +6,6 @@ import akka.actor.ActorSystem
 import akka.testkit.TestProbe
 import com.webtrends.harness.component.kafka.actor.OffsetManager
 import com.webtrends.harness.component.kafka.config.KafkaTestConfig
-import org.junit.Ignore
 import org.junit.runner.RunWith
 import org.slf4j.{Logger, LoggerFactory}
 import org.specs2.mutable.SpecificationLike
@@ -16,19 +15,17 @@ import org.specs2.time.NoTimeConversions
 import scala.concurrent.duration._
 
 
-@Ignore //This test needs to be fixed
+//@RunWith(classOf[JUnitRunner])
 class OffsetManagerSpec extends SpecificationLike with NoTimeConversions {
   import OffsetManager._
-  import TestUtil.ZkHelper
   protected final val log:Logger = LoggerFactory.getLogger(getClass)
 
-  //val zkServer = new TestingServer()
   val c = KafkaTestConfig.config
   implicit val system = ActorSystem("test", c)
   implicit val timeout = 10 seconds
 
-  val zkHelper = ZkHelper()
-
+  val helper =  TestUtil.ZkHelper()
+  val zkServer = helper.zkServer
   val path = "/offsetTest/lab/H"
   val offsetActor = system.actorOf(OffsetManager.props(path))
   val probe = TestProbe()
@@ -36,7 +33,7 @@ class OffsetManagerSpec extends SpecificationLike with NoTimeConversions {
   val myPath = "someNode"
   val data = "something"
 
-  zkHelper.ensureZkAvailable()
+  helper.ensureZkAvailable()
 
   Thread.sleep(2000)
 
@@ -47,11 +44,9 @@ class OffsetManagerSpec extends SpecificationLike with NoTimeConversions {
   "Offset Manager " should {
 
     "store some data " in {
-
-      probe.send(offsetActor, StoreOffsetData(myPath, OffsetData(data.getBytes(StandardCharsets.UTF_8))))
+      probe.send(offsetActor, StoreOffsetData("topic1", "cluster", 0, OffsetData(data.getBytes(StandardCharsets.UTF_8), 5L)))
 
       val result = probe.receiveOne(timeout).asInstanceOf[OffsetDataResponse]
-
 
       log.info("Result {}", result)
       result.data must beLeft
@@ -60,31 +55,28 @@ class OffsetManagerSpec extends SpecificationLike with NoTimeConversions {
 
 
     "be able to get some data" in {
-      probe.send(offsetActor, GetOffsetData(myPath))
+      probe.send(offsetActor, GetOffsetData("topic1", "cluster", 0))
 
       val result = probe.receiveOne(timeout).asInstanceOf[OffsetDataResponse]
 
-      result.data must beLeft;
+      result.data must beLeft
       result.data.left.get.asString() must beEqualTo(data)
     }
 
 
     "be successful on noNodeException " in {
-
-      probe.send(offsetActor, GetOffsetData("doesn't exists"))
+      probe.send(offsetActor, GetOffsetData("topic2", "cluster2", 0))
 
       val r = probe.receiveOne(timeout).asInstanceOf[OffsetDataResponse]
 
-      r.data must beLeft;
-
+      r.data must beLeft
       r.data.left.get.data must be empty
     }
   }
 
   step {
     system.stop(offsetActor)
-    zkHelper.shutdown()
+    zkServer.stop()
     system.terminate()
   }
-
 }

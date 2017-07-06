@@ -1,7 +1,7 @@
 package com.webtrends.harness.component.kafka.actor
 import akka.actor._
 import akka.testkit.TestProbe
-import com.webtrends.harness.component.kafka.actor.KafkaWriter.KafkaMessage
+import com.webtrends.harness.component.kafka.actor.KafkaWriter.{KafkaMessage, KafkaMessageByteKey, Message}
 import com.webtrends.harness.component.kafka.config.KafkaTestConfig
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.junit.runner.RunWith
@@ -10,8 +10,8 @@ import org.specs2.runner.JUnitRunner
 
 import scala.concurrent.duration.{Duration, SECONDS}
 
-case class TestRequest(kafkaMessage: KafkaMessage)
-case class TestResponse(producerRecord: ProducerRecord[String, Array[Byte]])
+case class TestRequest(kafkaMessage: Message)
+case class TestResponse(producerRecord: ProducerRecord[Array[Byte], Array[Byte]])
 
 class KafkaWriterTester extends KafkaWriter {
   override def receive:Receive = {
@@ -49,12 +49,28 @@ class KafkaWriterSpec extends  SpecificationLike {
       val response = probe.receiveOne(duration)
       val result = response match {
         case TestResponse(record) =>
-          record.key.equals(msgKey)
+          new String(record.key).equals(msgKey)
         case _ =>
           false
       }
 
-      result mustEqual(true)
+      result mustEqual true
+    }
+
+    "honor msg key as bytes" in {
+      val msgKey = "messageKey"
+      val kafkaMessage = KafkaMessageByteKey("topic", msgData, Some(msgKey.getBytes))
+
+      probe.send(kafkaWriter, TestRequest(kafkaMessage))
+      val response = probe.receiveOne(duration)
+      val result = response match {
+        case TestResponse(record) =>
+          new String(record.key).equals(msgKey)
+        case _ =>
+          false
+      }
+
+      result mustEqual true
     }
 
     "allow missing msg key" in {
@@ -69,7 +85,7 @@ class KafkaWriterSpec extends  SpecificationLike {
           false
       }
 
-      result mustEqual(true)
+      result mustEqual true
     }
 
     "honor partition key" in {
@@ -85,7 +101,7 @@ class KafkaWriterSpec extends  SpecificationLike {
           false
       }
 
-      result mustEqual(true)
+      result mustEqual true
     }
 
     "allow missing partition" in {
@@ -99,7 +115,7 @@ class KafkaWriterSpec extends  SpecificationLike {
         case _ => -1
       }
 
-      partition mustEqual(null)
+      partition mustEqual null
 
     }
   }

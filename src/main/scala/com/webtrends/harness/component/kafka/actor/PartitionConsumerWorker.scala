@@ -157,7 +157,7 @@ class PartitionConsumerWorker(kafkaProxy: ActorRef, assign: PartitionAssignment,
 
     case Stopped -> Starting =>
       log.info(s"$name: Transitioning from Stopped to Starting")
-      offsetManager ! GetOffsetData(partitionName(assign))
+      offsetManager ! GetOffsetData(topic, assign.cluster, assign.partition)
 
     case Starting -> Consuming =>
       consumer = Some(new SimpleConsumer(host, Try { kafkaSources(host).port } getOrElse 9092, 15000, bufferSize, clientId))
@@ -241,7 +241,7 @@ class PartitionConsumerWorker(kafkaProxy: ActorRef, assign: PartitionAssignment,
   protected def storeOffsetAndUpdateHealth(force: Boolean = false): Unit = {
     if (force || (ackedOffset > 0 && lastSentToStorage != ackedOffset)) {
       context.parent ! KafkaHealthState(name, healthy = true, s"Successfully fetched to $ackedOffset", topic)
-      offsetManager ! StoreOffsetData(partitionName(assign), OffsetData(formatAckedOffset().getBytes(utf8)))
+      offsetManager ! StoreOffsetData(topic, assign.cluster, assign.partition, OffsetData(formatAckedOffset().getBytes(utf8), ackedOffset))
     }
   }
 
@@ -259,8 +259,7 @@ class PartitionConsumerWorker(kafkaProxy: ActorRef, assign: PartitionAssignment,
 
   // Can be overridden to read custom offsets
   protected def extractOffset(offsetData:OffsetData):Long = {
-    val data = offsetData.asString()
-    if(data.isEmpty) 0L else data.toLong
+    offsetData.offset
   }
 
   def stopWorker(write: Boolean = true) = {
@@ -268,7 +267,7 @@ class PartitionConsumerWorker(kafkaProxy: ActorRef, assign: PartitionAssignment,
       log.debug(s"Shutdown %s, storage offset=%d, proxy offset=%d, acked offset=%d"
         .format(name, lastSentToStorage, lastSentToProxyOffset, ackedOffset))
 
-      offsetManager ! StoreOffsetData(partitionName(assign), OffsetData(formatAckedOffset().getBytes(utf8)))
+      offsetManager ! StoreOffsetData(topic, assign.cluster, assign.partition, OffsetData(formatAckedOffset().getBytes(utf8), ackedOffset))
     }
     scheduler.foreach(_.cancel())
     scheduler = List()

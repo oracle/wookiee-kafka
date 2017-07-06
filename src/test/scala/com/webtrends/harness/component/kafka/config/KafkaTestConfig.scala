@@ -42,7 +42,7 @@ object KafkaTestConfig {
                 event-age-threshold-seconds = 30
               }
             ]
-
+            kafka-hosts = []
             assignment-distributor {
               assignment-refresh-seconds = 2
               fetch-timeout-millis = 501

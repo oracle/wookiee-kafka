@@ -56,7 +56,7 @@ trait KafkaSettings extends ConfigHelper { this: Actor =>
     s"$distributionRootPath/leader")
 
   def offsetGetExpiration = Try { kafkaConfig.getInt("offset-timeout-seconds") } getOrElse 10 seconds
-  def zkConf = renewableConfig.hasPath("wookiee-zookeeper.quorum") match {
+  def zkConf: Option[ZookeeperSettings] = renewableConfig.hasPath("wookiee-zookeeper.quorum") match {
     case true => Some(ZookeeperSettings(renewableConfig.getConfig("wookiee-zookeeper")))
     case false => None
   }
