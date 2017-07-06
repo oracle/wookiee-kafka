@@ -103,11 +103,11 @@ object KafkaUtil {
   }
 
   def getSmallestAvailableOffset(consumer: SimpleConsumer, topic: String, partition: Int): Long = {
-    val topicAndPartition: TopicAndPartition = new TopicAndPartition(topic, partition)
+    val topicAndPartition: TopicAndPartition = TopicAndPartition(topic, partition)
 
     val endOffsetRequest = OffsetRequest(
       Map(topicAndPartition -> PartitionOffsetRequestInfo(OffsetRequest.EarliestTime, 1)),
-      replicaId = 0) //TODO: determine replicaId, if needed?
+      replicaId = Request.OrdinaryConsumerId)
 
     val endResponse: OffsetResponse = consumer.getOffsetsBefore(endOffsetRequest)
     if (endResponse.hasError) {
@@ -121,11 +121,11 @@ object KafkaUtil {
   }
 
   def getLargestAvailableOffset(consumer: SimpleConsumer, topic: String, partition: Int): Long = {
-    val topicAndPartition: TopicAndPartition = new TopicAndPartition(topic, partition)
+    val topicAndPartition: TopicAndPartition = TopicAndPartition(topic, partition)
 
     val startOffsetRequest = OffsetRequest(
       Map(topicAndPartition -> PartitionOffsetRequestInfo(OffsetRequest.LatestTime, 1)),
-      replicaId = 0) //TODO: determine replicaId, if needed?
+        replicaId = Request.OrdinaryConsumerId)
 
     val startResponse: OffsetResponse = consumer.getOffsetsBefore(startOffsetRequest)
     if (startResponse.hasError) {
