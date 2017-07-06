@@ -29,17 +29,27 @@ import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import scala.util.Try
 
 object KafkaWriter {
+  trait Message {
+    val topic: String
+    val data: Array[Byte]
+    val partition: Option[Integer] = None
+  }
 
-  case class KafkaMessage(topic: String,
-                          data: Array[Byte],
+  case class KafkaMessage(override val topic: String,
+                          override val data: Array[Byte],
                           key: Option[String] = None,
-                          partition: Option[Integer] = None)
+                          override val partition: Option[Integer] = None) extends Message
 
-  case class MessageToWrite(message: KafkaMessage)
+  case class KafkaMessageByteKey(override val topic: String,
+                                 override val data: Array[Byte],
+                                 key: Option[Array[Byte]] = None,
+                                 override val partition: Option[Integer] = None) extends Message
 
-  case class MessagesToWrite(messages: List[KafkaMessage])
+  case class MessageToWrite(message: Message)
 
-  case class MessagesToWriteWithAck(ackId: String, messages: KafkaMessage*)
+  case class MessagesToWrite(messages: List[Message])
+
+  case class MessagesToWriteWithAck(ackId: String, messages: Message*)
 
   case class MessageWriteAck(ackId: Either[String, Throwable])
 
@@ -55,7 +65,7 @@ class KafkaWriter extends Actor
 
   val dataProducer = newProducer
 
-  def newProducer = new KafkaProducer[String, Array[Byte]](KafkaUtil.configToProps(kafkaConfig.getConfig("producer")))
+  def newProducer = new KafkaProducer[Array[Byte], Array[Byte]](KafkaUtil.configToProps(kafkaConfig.getConfig("producer")))
 
   override def postStop() = {
     log.info("Stopping Kafka Writer")
@@ -72,7 +82,7 @@ class KafkaWriter extends Actor
       sender() ! MessageWriteAck(sendData(msgsWithAck.messages, msgsWithAck.ackId))
   }
 
-  def sendData(eventMessages: Seq[KafkaMessage], ackId: String = ""): Either[String, Throwable] = {
+  def sendData(eventMessages: Seq[Message], ackId: String = ""): Either[String, Throwable] = {
     Try {
       //iterator vs. foreach for performance gains
       val itr = eventMessages.iterator
@@ -106,10 +116,15 @@ class KafkaWriter extends Actor
     } get
   }
 
-  protected def keyedMessage(kafkaMessage: KafkaMessage): ProducerRecord[String, Array[Byte]] = {
-    val partition = kafkaMessage.partition.getOrElse(null)
-    val key = kafkaMessage.key.getOrElse(null)
-
-    new ProducerRecord[String, Array[Byte]](kafkaMessage.topic, partition, key, kafkaMessage.data)
+  protected def keyedMessage(kafkaMessage: Message): ProducerRecord[Array[Byte], Array[Byte]] = {
+    val partition = kafkaMessage.partition.orNull
+    kafkaMessage match {
+      case km: KafkaMessage =>
+        val key = km.key.map(_.getBytes).orNull
+        new ProducerRecord[Array[Byte], Array[Byte]](kafkaMessage.topic, partition, key, kafkaMessage.data)
+      case kmb: KafkaMessageByteKey =>
+        val key = kmb.key.orNull
+        new ProducerRecord[Array[Byte], Array[Byte]](kafkaMessage.topic, partition, key, kafkaMessage.data)
+    }
   }
 }
