@@ -13,7 +13,7 @@ import scala.concurrent.duration.{Duration, SECONDS}
 case class TestRequest(kafkaMessage: KafkaMessage)
 case class TestResponse(producerRecord: ProducerRecord[Array[Byte], Array[Byte]])
 
-class KafkaWriterTester extends KafkaWriter {
+class KafkaWriterTester(healthParent: ActorRef) extends KafkaWriter(healthParent) {
   override def receive:Receive = {
     case TestRequest(message) =>
       sender ! TestResponse(keyedMessage(message))
@@ -27,7 +27,7 @@ class KafkaWriterTester extends KafkaWriter {
 }
 
 object KafkaWriterTester {
-  def props(): Props = Props[KafkaWriterTester]
+  def props(): Props = Props(classOf[KafkaWriterTester], null)
 }
 
 @RunWith(classOf[JUnitRunner])

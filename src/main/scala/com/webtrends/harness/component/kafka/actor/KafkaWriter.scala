@@ -19,13 +19,14 @@
 
 package com.webtrends.harness.component.kafka.actor
 
-import akka.actor.{Actor, Props}
+import akka.actor.{Actor, ActorRef, Props}
 import com.webtrends.harness.component.kafka.health.KafkaWriterHealthCheck
-import com.webtrends.harness.component.kafka.util.{KafkaUtil, KafkaSettings}
+import com.webtrends.harness.component.kafka.util.{KafkaSettings, KafkaUtil}
 import com.webtrends.harness.component.metrics.metrictype.Meter
-import com.webtrends.harness.health.ComponentState
+import com.webtrends.harness.health.{ComponentState, HealthComponent}
 import com.webtrends.harness.logging.ActorLoggingAdapter
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
+
 import scala.util.Try
 
 object KafkaWriter {
@@ -42,10 +43,10 @@ object KafkaWriter {
 
   case class MessageWriteAck(ackId: Either[String, Throwable])
 
-  def props(): Props = Props[KafkaWriter]
+  def props(parent: ActorRef): Props = Props(classOf[KafkaWriter], parent)
 }
 
-class KafkaWriter extends Actor
+class KafkaWriter(val healthParent: ActorRef) extends Actor
   with ActorLoggingAdapter with KafkaWriterHealthCheck with KafkaSettings {
   import KafkaWriter._
 
@@ -62,7 +63,7 @@ class KafkaWriter extends Actor
     dataProducer.close()
   }
 
-  def receive:Receive = healthReceive orElse {
+  def receive:Receive = {
     case MessageToWrite(message) => sendData(Seq(message))
 
     case MessagesToWrite(messages) => sendData(messages)
@@ -91,7 +92,7 @@ class KafkaWriter extends Actor
         }
       }
 
-      if (currentHealth.isEmpty || currentHealth.get.state == ComponentState.NORMAL) {
+      if (currentHealth.state == ComponentState.NORMAL) {
         Left(ackId)
       }
       else {
@@ -100,7 +101,7 @@ class KafkaWriter extends Actor
     } recover {
       case ex: Exception =>
         log.error("Unable To write Event", ex)
-        setHealth(ComponentState.CRITICAL, "Last message failed to send")
+        setHealth(HealthComponent(self.path.name, ComponentState.CRITICAL, "Last message failed to send"))
         Right(ex)
     } get
   }

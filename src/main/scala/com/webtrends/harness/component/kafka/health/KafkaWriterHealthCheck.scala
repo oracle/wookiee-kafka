@@ -23,22 +23,19 @@ import java.util.concurrent.TimeUnit
 
 import com.webtrends.harness.component.kafka.actor.KafkaWriter
 import com.webtrends.harness.component.kafka.actor.KafkaWriter.{KafkaMessage, MessageToWrite}
-import com.webtrends.harness.health.ComponentState.ComponentState
+import com.webtrends.harness.health.ComponentState._
 import com.webtrends.harness.health.{ComponentState, HealthComponent}
-import com.webtrends.harness.service.messages.CheckHealth
 import org.apache.kafka.clients.producer.RecordMetadata
 
-import scala.concurrent.{Future, blocking}
 import scala.concurrent.duration._
+import scala.concurrent.{Future, blocking}
 import scala.util.Try
 
+case class ProducerHealth(healthComponent: HealthComponent)
 case object KafkaHealthRequest
 
 trait KafkaWriterHealthCheck { this: KafkaWriter =>
-
-  val healthName = "Kafka Writer"
-
-  var currentHealth: Option[HealthComponent] = None
+  var currentHealth: HealthComponent = HealthComponent(self.path.name, NORMAL, "Writer not experiencing errors")
 
   var inProcessSend: Option[java.util.concurrent.Future[RecordMetadata]] = None
 
@@ -52,21 +49,19 @@ trait KafkaWriterHealthCheck { this: KafkaWriter =>
   val healthMessage = MessageToWrite(KafkaMessage("producer_health", "Healthy".getBytes("utf-8"), None, None))
   val scheduledHealthProduce = context.system.scheduler.schedule(0 seconds, 5 seconds, self, healthMessage)(scala.concurrent.ExecutionContext.Implicits.global)
 
-  def healthReceive: Receive = {
-    case hc: HealthComponent =>
-      currentHealth = Some(hc)
-
-    case CheckHealth =>
-      sender ! currentHealth.getOrElse(HealthComponent(healthName, ComponentState.NORMAL, "No data has been written yet"))
+  def setHealth(hc: HealthComponent): Unit = {
+    if (hc.state != currentHealth.state) {
+      currentHealth = hc
+      healthParent ! ProducerHealth(currentHealth)
+    }
   }
 
-  def setHealth(componentState: ComponentState, details: String) {
-    currentHealth = Some(HealthComponent("Kafka Writer", componentState, details))
+  override def preStart(): Unit = {
+    if (healthParent != null) healthParent ! ProducerHealth(currentHealth)
   }
 
-  def stopHealthCheck: Unit = {
+  override def postStop(): Unit = {
     scheduledHealthProduce.cancel()
-    currentHealth = None
   }
 
   // The Kafka API makes it difficult to identify the target kafka server being down. A provided callback will not
@@ -86,14 +81,12 @@ trait KafkaWriterHealthCheck { this: KafkaWriter =>
           blocking {
             try {
               sendFuture.get(maxSendTimeMillis, TimeUnit.MILLISECONDS)
-              if (currentHealth.isEmpty || currentHealth.get.state != ComponentState.NORMAL) {
-                self ! HealthComponent(healthName, ComponentState.NORMAL, "Write successful")
-              }
+              setHealth(HealthComponent(self.path.name, ComponentState.NORMAL, "Write successful"))
             }
             catch {
               case ex: Exception =>
                 log.error("Unable to produce data. Marking producer as unhealthy", ex)
-                self ! HealthComponent(healthName, ComponentState.CRITICAL, ex.getMessage)
+                setHealth(HealthComponent(self.path.name, ComponentState.CRITICAL, ex.getMessage))
             }
             inProcessSend = None // Note that this may be executed in a different thread than the current message being processed
           }
