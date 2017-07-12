@@ -25,10 +25,12 @@ import akka.routing.FromConfig
 import com.webtrends.harness.app.HarnessActor.{ConfigChange, PrepareForShutdown, SystemReady}
 import com.webtrends.harness.component.Component
 import com.webtrends.harness.component.kafka.actor.{KafkaTopicManager, KafkaWriter}
+import com.webtrends.harness.component.kafka.health.ProducerHealth
 import com.webtrends.harness.component.kafka.util.KafkaSettings
 import com.webtrends.harness.health.{ComponentState, HealthComponent}
 import com.webtrends.harness.service.messages.CheckHealth
 
+import scala.collection.mutable
 import scala.concurrent.{Future, Promise}
 import scala.util.{Failure, Success}
 
@@ -59,6 +61,7 @@ class KafkaManager(name: String) extends Component(name) with KafkaSettings {
   //Distributor actor will start up if a 'consumer' is configured
   var distributor: Option[ActorRef] = None
 
+  val writerHealths = mutable.HashMap[String, HealthComponent]()
   var consumerManagerHealth: Option[HealthComponent] = None
 
   // Start up the producer as soon as we can since it has no dependencies
@@ -90,16 +93,19 @@ class KafkaManager(name: String) extends Component(name) with KafkaSettings {
 
     case h: HealthComponent =>
       consumerManagerHealth = Some(h)
+
+    case ProducerHealth(hc) =>
+      writerHealths(hc.name) = hc
   }
 
   def startProducer() {
     log.info("Starting producer as wookiee-kafka config contained 'producer' config")
-    producer = Some(context.actorOf(FromConfig.props(Props(classOf[KafkaWriter])), "producer"))
+    producer = Some(context.actorOf(FromConfig.props(KafkaWriter.props(self)), "producer"))
   }
 
   override def checkHealth: Future[HealthComponent] = {
     val p = Promise[HealthComponent]()
-    val children = Seq(distributor, coordinator, producer)
+    val children = Seq(distributor, coordinator)
 
     getHealth.onComplete {
       case Success(s) =>
@@ -108,6 +114,8 @@ class KafkaManager(name: String) extends Component(name) with KafkaSettings {
             case ex: Exception => HealthComponent(ref.path.name, ComponentState.CRITICAL, s"Failure to get health of child component. ${ex.getMessage}")
           }
         }
+        val writeHealth = HealthComponent("Kafka Writer", ComponentState.NORMAL,
+          "Ready to write", None, writerHealths.values.toList)
 
         Future.sequence(healthFutures) onComplete {
           case Failure(f) =>
@@ -115,6 +123,7 @@ class KafkaManager(name: String) extends Component(name) with KafkaSettings {
             p success HealthComponent(s.name, ComponentState.CRITICAL, s"Failure to get health of child components. ${f.getMessage}")
           case Success(healths) =>
             healths foreach { it => s.addComponent(it) }
+            s.addComponent(writeHealth)
             p success s
         }
       case Failure(f) =>
