@@ -47,7 +47,9 @@ trait KafkaWriterHealthCheck { this: KafkaWriter =>
 
   // Schedule a regular send to detect changes even if no data is flowing through
   val healthMessage = MessageToWrite(KafkaMessage("producer_health", "Healthy".getBytes("utf-8"), None, None))
-  val scheduledHealthProduce = context.system.scheduler.schedule(0 seconds, 5 seconds, self, healthMessage)(scala.concurrent.ExecutionContext.Implicits.global)
+  val scheduledHealthProduce = if (Try(context.system.settings.config.getBoolean("wookiee-kafka.producer-scheduled-check")).getOrElse(true))
+    context.system.scheduler.schedule(0 seconds, 5 seconds, self, healthMessage)(scala.concurrent.ExecutionContext.Implicits.global)
+  else null
 
   def setHealth(hc: HealthComponent): Unit = {
     if (hc.state != currentHealth.state) {
@@ -61,7 +63,7 @@ trait KafkaWriterHealthCheck { this: KafkaWriter =>
   }
 
   override def postStop(): Unit = {
-    scheduledHealthProduce.cancel()
+    if (scheduledHealthProduce != null) scheduledHealthProduce.cancel()
   }
 
   // The Kafka API makes it difficult to identify the target kafka server being down. A provided callback will not
