@@ -26,14 +26,18 @@ import com.webtrends.harness.component.metrics.metrictype.Meter
 import com.webtrends.harness.health.{ComponentState, HealthComponent}
 import com.webtrends.harness.logging.ActorLoggingAdapter
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
+import org.apache.kafka.common.PartitionInfo
+import org.apache.kafka.common.utils.Utils
 
+import scala.collection.JavaConversions._
+import scala.collection.mutable
 import scala.util.Try
 
 object KafkaWriter {
   case class KafkaMessage(topic: String,
                           data: Array[Byte],
                           key: Option[Array[Byte]] = None,
-                          partition: Option[Integer] = None)
+                          partition: Option[Any] = None)
 
   case class MessageToWrite(message: KafkaMessage)
 
@@ -54,6 +58,7 @@ class KafkaWriter(val healthParent: ActorRef) extends Actor
   lazy val totalBytesPerSecond = Meter("total-bytes-per-second")
 
   val dataProducer = newProducer
+  val topicPartsMeta = mutable.HashMap[String, List[PartitionInfo]]()
 
   def newProducer = new KafkaProducer[Array[Byte], Array[Byte]](KafkaUtil.configToProps(kafkaConfig.getConfig("producer")))
 
@@ -107,8 +112,23 @@ class KafkaWriter(val healthParent: ActorRef) extends Actor
   }
 
   protected def keyedMessage(kafkaMessage: KafkaMessage): ProducerRecord[Array[Byte], Array[Byte]] = {
-    val partition = kafkaMessage.partition.orNull
+    val partition = kafkaMessage.partition.orNull match {
+      case null => null
+      case i: Int => Integer.valueOf(i)
+      case arr: Array[Byte] => Integer.valueOf(Utils.abs(java.util.Arrays.hashCode(arr)) % getPartNum(kafkaMessage.topic))
+      case a => Integer.valueOf(Utils.abs(a.hashCode) % getPartNum(kafkaMessage.topic))
+    }
     val key = kafkaMessage.key.orNull
     new ProducerRecord[Array[Byte], Array[Byte]](kafkaMessage.topic, partition, key, kafkaMessage.data)
+  }
+
+  private def getPartNum(topic: String): Int = {
+    topicPartsMeta.get(topic) match {
+      case Some(parts) => parts.length
+      case None =>
+        val parts = dataProducer.partitionsFor(topic)
+        topicPartsMeta.put(topic, parts.toList)
+        parts.length
+    }
   }
 }
