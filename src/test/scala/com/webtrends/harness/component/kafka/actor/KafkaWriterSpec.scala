@@ -1,8 +1,10 @@
 package com.webtrends.harness.component.kafka.actor
 import akka.actor._
 import akka.testkit.TestProbe
-import com.webtrends.harness.component.kafka.actor.KafkaWriter.KafkaMessage
+import com.webtrends.harness.component.kafka.actor.KafkaWriter.{KafkaMessage, MessageWriteAck, MessagesToWriteWithAck}
 import com.webtrends.harness.component.kafka.config.KafkaTestConfig
+import com.webtrends.harness.component.kafka.health.ProducerHealth
+import com.webtrends.harness.health.{ComponentState, HealthComponent}
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.junit.runner.RunWith
 import org.specs2.mutable.SpecificationLike
@@ -13,27 +15,31 @@ import scala.concurrent.duration.{Duration, SECONDS}
 case class TestRequest(kafkaMessage: KafkaMessage)
 case class TestResponse(producerRecord: ProducerRecord[Array[Byte], Array[Byte]])
 
-class KafkaWriterTester(healthParent: ActorRef) extends KafkaWriter(healthParent) {
-  override def receive:Receive = {
-    case TestRequest(message) =>
-      sender ! TestResponse(keyedMessage(message))
+case class HealthParentTester() extends Actor with ActorLogging {
+  override def receive = {
+    case ProducerHealth(health) =>
+      log.info(s"Health from Producer: $health")
   }
-
-  override def postStop() = {
-
-  }
-
-  override  def newProducer = null
 }
 
-object KafkaWriterTester {
-  def props(): Props = Props(classOf[KafkaWriterTester], null)
+class KafkaWriterTester(healthParent: ActorRef) extends KafkaWriter(healthParent) {
+  override def receive:Receive = super.receive orElse {
+    case TestRequest(message) =>
+      sender ! TestResponse(keyedMessage(message))
+    case hc: HealthComponent =>
+      setHealth(hc)
+  }
+
+  override def postStop() = {}
+  override def newProducer = null
+  override def sendMessages(messages: Seq[KafkaMessage]) = {}
 }
 
 @RunWith(classOf[JUnitRunner])
 class KafkaWriterSpec extends  SpecificationLike {
   implicit val system = ActorSystem("test", KafkaTestConfig.config)
-  val kafkaWriter = system.actorOf(KafkaWriterTester.props(), "kafka-writer-tester")
+  val healthTester = system.actorOf(Props[HealthParentTester], "kafka-writer-tester-health")
+  val kafkaWriter = system.actorOf(Props(classOf[KafkaWriterTester], healthTester), "kafka-writer-tester")
   val probe = TestProbe()
   val duration = Duration(5, SECONDS)
   val msgData = "msg".getBytes("UTF-8")
@@ -116,7 +122,44 @@ class KafkaWriterSpec extends  SpecificationLike {
       }
 
       partition mustEqual null
+    }
 
+    "write messages and return an ack" in {
+      val kafkaMessage = KafkaMessage("topic", msgData)
+
+      probe.send(kafkaWriter, MessagesToWriteWithAck("test_ack", kafkaMessage))
+
+      val ack = probe.expectMsgClass(duration, classOf[MessageWriteAck]).ackId
+
+      ack match {
+        case Left(ackString) =>
+          ackString mustEqual "test_ack"
+        case Right(ex) =>
+          throw ex
+      }
+    }
+
+    "write messages but return error when health is bad" in {
+      try {
+        probe.send(kafkaWriter, HealthComponent(kafkaWriter.path.name,
+          ComponentState.CRITICAL, "Set to CRITICAL for test"))
+
+        val kafkaMessage = KafkaMessage("topic", msgData)
+        probe.send(kafkaWriter, MessagesToWriteWithAck("test_ack", kafkaMessage))
+
+        val ack = probe.expectMsgClass(duration, classOf[MessageWriteAck]).ackId
+
+        ack match {
+          case Left(ackString) =>
+            failure(s"Got $ackString but should have failed")
+          case Right(ex) =>
+            ex.ackId mustEqual "test_ack"
+            success
+        }
+      } finally {
+        probe.send(kafkaWriter, HealthComponent(kafkaWriter.path.name,
+          ComponentState.NORMAL, "Writer not experiencing errors"))
+      }
     }
   }
 }

@@ -45,7 +45,11 @@ object KafkaWriter {
 
   case class MessagesToWriteWithAck(ackId: String, messages: KafkaMessage*)
 
-  case class MessageWriteAck(ackId: Either[String, Throwable])
+  case class MessageWriteAck(ackId: Either[String, SendFailureException])
+
+  // ackId will be the ackId set in MessageToWriteWithAck
+  case class SendFailureException(ackId: String, error: Throwable)
+    extends Throwable(s"Ack'd id [$ackId] failed to produce", error)
 
   def props(parent: ActorRef): Props = Props(classOf[KafkaWriter], parent)
 }
@@ -77,37 +81,20 @@ class KafkaWriter(val healthParent: ActorRef) extends Actor
       sender() ! MessageWriteAck(sendData(msgsWithAck.messages, msgsWithAck.ackId))
   }
 
-  def sendData(eventMessages: Seq[KafkaMessage], ackId: String = ""): Either[String, Throwable] = {
+  def sendData(eventMessages: Seq[KafkaMessage], ackId: String = ""): Either[String, SendFailureException] = {
     Try {
-      //iterator vs. foreach for performance gains
-      val itr = eventMessages.iterator
-      while (itr.hasNext) {
-        val kafkaMessage = itr.next()
-        if (kafkaMessage.data.length > 0) {
-          val message = keyedMessage(kafkaMessage)
-
-          // If the Kafka target is down completely, the Kafka client provides no feedback.
-          // The callback is never called and a get on the returned java Future will block indefinitely.
-          // Handling this by waiting on the
-          val productionFuture = dataProducer.send(message)
-          monitorSendHealth(productionFuture)
-
-          totalBytesPerSecond.mark(kafkaMessage.data.length)
-          totalEvents.mark(1)
-        }
-      }
+      sendMessages(eventMessages)
 
       if (currentHealth.state == ComponentState.NORMAL) {
         Left(ackId)
-      }
-      else {
-        Right(new IllegalStateException("Producer is not healthy"))
+      } else {
+        Right(SendFailureException(ackId, new IllegalStateException("Producer is not healthy")))
       }
     } recover {
       case ex: Exception =>
-        log.error("Unable To write Event", ex)
+        log.error(s"Unable To write Event, ackId=[$ackId]", ex)
         setHealth(HealthComponent(self.path.name, ComponentState.CRITICAL, "Last message failed to send"))
-        Right(ex)
+        Right(SendFailureException(ackId, ex))
     } get
   }
 
@@ -120,6 +107,26 @@ class KafkaWriter(val healthParent: ActorRef) extends Actor
     }
     val key = kafkaMessage.key.orNull
     new ProducerRecord[Array[Byte], Array[Byte]](kafkaMessage.topic, partition, key, kafkaMessage.data)
+  }
+
+  protected def sendMessages(messages: Seq[KafkaMessage]): Unit = {
+    //iterator vs. foreach for performance gains
+    val itr = messages.iterator
+    while (itr.hasNext) {
+      val kafkaMessage = itr.next()
+      if (kafkaMessage.data.length > 0) {
+        val message = keyedMessage(kafkaMessage)
+
+        // If the Kafka target is down completely, the Kafka client provides no feedback.
+        // The callback is never called and a get on the returned java Future will block indefinitely.
+        // Handling this by waiting on the
+        val productionFuture = dataProducer.send(message)
+        monitorSendHealth(productionFuture)
+
+        totalBytesPerSecond.mark(kafkaMessage.data.length)
+        totalEvents.mark(1)
+      }
+    }
   }
 
   private def getPartNum(topic: String): Int = {
