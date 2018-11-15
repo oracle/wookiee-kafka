@@ -2,11 +2,8 @@ package com.webtrends.harness.component.kafka
 
 import java.net.InetAddress
 
-import akka.actor.{Actor, ActorSystem}
-import akka.testkit.TestProbe
-import com.typesafe.config.Config
+import akka.actor.{Actor, ActorSystem, Props}
 import com.webtrends.harness.component.kafka.config.KafkaTestConfig
-import com.webtrends.harness.component.zookeeper.ZookeeperEvent.ZookeeperStateEventRegistration
 import com.webtrends.harness.component.zookeeper.config.ZookeeperSettings
 import com.webtrends.harness.component.zookeeper.{ZookeeperActor, ZookeeperService}
 import org.apache.curator.test.TestingServer
@@ -18,15 +15,11 @@ object TestUtil {
   private val log = LoggerFactory.getLogger(getClass)
 
 
-   def hostName = InetAddress.getLocalHost.getHostName
+  def hostName = InetAddress.getLocalHost.getHostName
+
   /**
    * Simple retry
-   * @param maxTries
-   * @param fn
-   * @tparam A
-   * @return
    */
-
   def retry[A](maxTries:Int = 3, sleepMillis: Long = 100)(fn: => A): A ={
     @annotation.tailrec
     def _retry[A](n:Int, tries:Int)(fn: => A): A = {
@@ -56,7 +49,7 @@ object TestUtil {
     def ensureZkAvailable() = {
       //We need to make sure we can start zookeeper up before we start other actors
       retry() {
-        ZookeeperService().register(Actor.noSender, ZookeeperStateEventRegistration(Actor.noSender))
+        ZookeeperService.registerMediator(system.actorOf(Props[ZkNullActor]))(system)
         log.info("Zookeeper is READY")
       }
     }
@@ -67,6 +60,12 @@ object TestUtil {
     def shutdown() = {
       system.stop(zkActor)
       zkServer.close()
+    }
+  }
+
+  case class ZkNullActor() extends Actor {
+    override def receive = {
+      case _ => // Nothing
     }
   }
 }

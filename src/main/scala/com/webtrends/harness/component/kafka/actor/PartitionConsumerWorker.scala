@@ -72,7 +72,7 @@ object PartitionConsumerWorker {
 }
 
 class PartitionConsumerWorker(kafkaProxy: ActorRef, assign: PartitionAssignment, offsetManager: ActorRef)
-  extends LoggingFSM[State, Lock] with Actor with ZookeeperAdapter with KafkaSettings {
+  extends LoggingFSM[State, Lock] with Actor with KafkaSettings {
   implicit val timeout = Timeout(5000, TimeUnit.MILLISECONDS)
   import ConsumptionFetchMode._
   import context._
@@ -348,11 +348,11 @@ class PartitionConsumerWorker(kafkaProxy: ActorRef, assign: PartitionAssignment,
 
     val fetchResponse = consumer.get.fetch(fetch)
     if (fetchResponse.hasError) {
-      ErrorMapping.maybeThrowException(fetchResponse.errorCode(topic, part))
+      ErrorMapping.maybeThrowException(fetchResponse.error(topic, part).code())
     }
 
     val msgSet = fetchResponse.messageSet(topic, part)
     val msgSeq = KafkaMessageSet(msgSet, offset) // This is needed since if Kafka is compressing the messages, the fetch request will return an entire compressed block even if the requested offset isn't the beginning of the compressed block. Thus a message we saw previously may be returned again.
-    FetchRes(msgSeq, if (msgSet.size > 0) msgSet.last.nextOffset else offset)
+    FetchRes(msgSeq, if (msgSet.nonEmpty) msgSet.last.nextOffset else offset)
   }
 }

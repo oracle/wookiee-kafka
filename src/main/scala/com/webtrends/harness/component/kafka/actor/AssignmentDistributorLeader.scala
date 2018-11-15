@@ -114,7 +114,7 @@ class AssignmentDistributorLeader(sourceProxy: ActorRef)
     getChildren(s"${paths.assignmentPath}", includeData = true).onComplete {
       case Success(existingData) =>
         // Delete any entries that don't have new data
-        val nodesToDelete = existingData.filter{ case (nodeId, d) => !data.contains(nodeId)}
+        val nodesToDelete = existingData.filter{ case (nodeId, _) => !data.contains(nodeId)}
 
         Future.traverse(nodesToDelete) { case (nodeId, _) =>
           deleteNode(s"${paths.assignmentPath}/$nodeId")
@@ -129,7 +129,7 @@ class AssignmentDistributorLeader(sourceProxy: ActorRef)
     Future.traverse(data) { case (nodeId, nodeData) =>
       setData(s"${paths.assignmentPath}/$nodeId", nodeData.getBytes(utf8), create = true, ephemeral = false)
     }.onComplete {
-      case Success(path) =>
+      case Success(_) =>
         log.debug(s"Successfully set node data")
       case Failure(fail) =>
         log.error(s"Unable to set node data. ${fail.getMessage}")
@@ -168,7 +168,7 @@ with KafkaSettings
 
   val c = context.system.settings.config
 
-  implicit val zkTimeout = Try { Timeout(c.getLong(s"$configRoot.zk-fetch-timeout-millis") milliseconds)}
+  implicit val timeout = Try { Timeout(c.getLong(s"$configRoot.zk-fetch-timeout-millis") milliseconds)}
     .getOrElse[Timeout](5 seconds)
 
   val fetchTimeout = Try {c.getLong(s"$configRoot.fetch-timeout-millis")
