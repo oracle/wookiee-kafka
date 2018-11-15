@@ -16,7 +16,7 @@
         <release.type>SNAPSHOT</release.type>
         <build>${build.number}</build>
         <build-artifact-name>${project.artifactId}-${project.version}</build-artifact-name>
-        <kafka.version>1.1.0</kafka.version>
+        <kafka.version>1.1.1</kafka.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <scala.artifact.version>2.11</scala.artifact.version>
         <scala.version>${scala.artifact.version}.11</scala.version>
