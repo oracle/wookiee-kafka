@@ -72,7 +72,7 @@ object PartitionConsumerWorker {
 }
 
 class PartitionConsumerWorker(kafkaProxy: ActorRef, assign: PartitionAssignment, offsetManager: ActorRef)
-  extends LoggingFSM[State, Lock] with Actor with ZookeeperAdapter with KafkaSettings {
+  extends LoggingFSM[State, Lock] with Actor with KafkaSettings {
   implicit val timeout = Timeout(5000, TimeUnit.MILLISECONDS)
   import ConsumptionFetchMode._
   import context._
