@@ -21,15 +21,14 @@
         <kafka.version>1.1.1</kafka.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <scoverage.plugin.version>1.1.1</scoverage.plugin.version>
-        <wookiee.core.version>1.3-jb_akkaUpdate-SNAPSHOT</wookiee.core.version>
-        <wookiee.zookeeper.version>1.3-jb_akkaUpdate-SNAPSHOT</wookiee.zookeeper.version>
-        <wookiee.metrics.version>2.5-jb_akkaUpdate-SNAPSHOT</wookiee.metrics.version>
-        <!-- <akka.version>2.5.4</akka.version> -->
+        <wookiee.core.version>1.3.40</wookiee.core.version>
+        <wookiee.zookeeper.version>1.3.28</wookiee.zookeeper.version>
+        <wookiee.metrics.version>2.5.14</wookiee.metrics.version>
     </properties>
 
     <groupId>com.webtrends</groupId>
     <artifactId>wookiee-kafka_2.11</artifactId>
-    <version>1.3-jb_akkaUpdate-SNAPSHOT</version>
+    <version>1.3-SNAPSHOT</version>
     <packaging>jar</packaging>
     <name>Component: Kafka</name>
     <description>Apache Kafka support for Wookiee, make simple production and consumption of Kafka topics.</description>
