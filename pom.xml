@@ -85,14 +85,6 @@
             <artifactId>wookiee-core_${scala.artifact.version}</artifactId>
             <version>${wookiee.core.version}</version>
         </dependency>
-        <!--
-        <dependency>
-            <groupId>com.typesafe.akka</groupId>
-            <artifactId>akka-testkit_${scala.artifact.version}</artifactId>
-            <version>${akka.version}</version>
-            <scope>test</scope>
-        </dependency>
-        -->
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>wookiee-test_${scala.artifact.version}</artifactId>
