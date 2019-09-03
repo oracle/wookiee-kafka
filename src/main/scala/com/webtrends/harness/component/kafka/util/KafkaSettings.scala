@@ -29,6 +29,8 @@ import com.webtrends.harness.component.kafka.actor.AssignmentDistributorLeader.P
 import com.webtrends.harness.component.kafka.actor.KafkaTopicManager.BrokerSpec
 import com.webtrends.harness.component.zookeeper.config.ZookeeperSettings
 import com.webtrends.harness.config.ConfigHelper
+import com.webtrends.harness.health.ComponentState
+import com.webtrends.harness.health.ComponentState.ComponentState
 import com.webtrends.harness.utils.ConfigUtil
 
 import scala.collection.JavaConversions._
@@ -98,6 +100,16 @@ trait KafkaSettings extends ConfigHelper { this: Actor =>
   def getAssignmentHost(assign: String): String = {
     assign.split('-')(0)
   }
+
+  // Should we always set this component to critical when communication errors arise? Yes, almost certainly.
+  // Unfortunately this is a wookiee component and wookiee health will automatically set the consuming application's
+  // health to critical if any subcomponents register as critical. Some users may not wish to completely take their
+  // application offline if kafka interactions fail.
+  def errorState: ComponentState =
+    if (Try(kafkaConfig.getBoolean("softFail")).getOrElse(false))
+      ComponentState.DEGRADED
+    else
+      ComponentState.CRITICAL
 
   override def renewConfiguration() = {
     super.renewConfiguration()
