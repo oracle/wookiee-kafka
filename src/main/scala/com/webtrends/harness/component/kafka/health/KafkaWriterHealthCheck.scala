@@ -71,7 +71,7 @@ trait KafkaWriterHealthCheck { this: KafkaWriter =>
   //
   // Addressing this by wrapping the returned java Future and into a scala Future and blocking with defined timeout.
   // If it completes successfully, and we don't have a normal health, set it to NORMAL
-  // If it throws an exception or times out, set our health to CRITICAL
+  // If it throws an exception or times out, set our health to alert error
   //
   // To limit performance impact, we are only monitoring a single send at at ime
   def monitorSendHealth(sendFuture: java.util.concurrent.Future[RecordMetadata]) {
@@ -88,7 +88,7 @@ trait KafkaWriterHealthCheck { this: KafkaWriter =>
             catch {
               case ex: Exception =>
                 log.error("Unable to produce data. Marking producer as unhealthy", ex)
-                setHealth(HealthComponent(self.path.name, ComponentState.CRITICAL, ex.getMessage))
+                setHealth(HealthComponent(self.path.name, errorState, ex.getMessage))
             }
             inProcessSend = None // Note that this may be executed in a different thread than the current message being processed
           }

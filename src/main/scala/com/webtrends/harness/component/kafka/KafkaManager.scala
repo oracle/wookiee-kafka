@@ -111,7 +111,7 @@ class KafkaManager(name: String) extends Component(name) with KafkaSettings {
       case Success(s) =>
         val healthFutures = children.flatten map { ref =>
           (ref ? CheckHealth).mapTo[HealthComponent] recover {
-            case ex: Exception => HealthComponent(ref.path.name, ComponentState.CRITICAL, s"Failure to get health of child component. ${ex.getMessage}")
+            case ex: Exception => HealthComponent(ref.path.name, errorState, s"Failure to get health of child component. ${ex.getMessage}")
           }
         }
         val writeHealth = HealthComponent("Kafka Writer", ComponentState.NORMAL,
@@ -120,7 +120,7 @@ class KafkaManager(name: String) extends Component(name) with KafkaSettings {
         Future.sequence(healthFutures) onComplete {
           case Failure(f) =>
             log.debug(f, "Failed to retrieve health of children objects")
-            p success HealthComponent(s.name, ComponentState.CRITICAL, s"Failure to get health of child components. ${f.getMessage}")
+            p success HealthComponent(s.name, errorState, s"Failure to get health of child components. ${f.getMessage}")
           case Success(healths) =>
             healths foreach { it => s.addComponent(it) }
             s.addComponent(writeHealth)
@@ -128,7 +128,7 @@ class KafkaManager(name: String) extends Component(name) with KafkaSettings {
         }
       case Failure(f) =>
         log.debug(f, "Failed to get health from component")
-        p success HealthComponent(self.path.toString, ComponentState.CRITICAL, f.getMessage)
+        p success HealthComponent(self.path.toString, errorState, f.getMessage)
     }
 
     p.future

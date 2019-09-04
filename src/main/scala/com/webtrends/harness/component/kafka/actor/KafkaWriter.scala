@@ -93,7 +93,7 @@ class KafkaWriter(val healthParent: ActorRef) extends Actor
     } recover {
       case ex: Exception =>
         log.error(s"Unable To write Event, ackId=[$ackId]", ex)
-        setHealth(HealthComponent(self.path.name, ComponentState.CRITICAL, "Last message failed to send"))
+        setHealth(HealthComponent(self.path.name, errorState, "Last message failed to send"))
         Right(SendFailureException(ackId, ex))
     } get
   }

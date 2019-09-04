@@ -49,7 +49,7 @@ trait CoordinatorHealth { this: KafkaConsumerCoordinator =>
   var topicAgeThresholds = mutable.Map[String, Long]()
   var downSources = Set[String]()
 
-  // We need to report our health status as critical if the events being processed are too old.
+  // We need to report our health status in error state if the events being processed are too old.
   // There are a few scenarios where this could occur:
   //
   // 1. There is an issue copying data from one or more servers (or whole data centers.)
@@ -71,7 +71,7 @@ trait CoordinatorHealth { this: KafkaConsumerCoordinator =>
         sender ! aggregateHealthStates()
       } catch {
         case ex: Exception => sender ! HealthComponent("Coordinator Health",
-          ComponentState.CRITICAL, s"Could not get health: ${ex.getMessage}")
+          errorState, s"Could not get health: ${ex.getMessage}")
       }
 
     case msg: KafkaHealthState =>
@@ -91,12 +91,12 @@ trait CoordinatorHealth { this: KafkaConsumerCoordinator =>
     (for ((topic, partitionsByServer) <- criticalPartsByTopicAndServer) yield {
       val serverHealths = for ( (server, partitions) <- partitionsByServer) yield {
         HealthComponent(name = s"$server",
-          state = ComponentState.CRITICAL,
+          state = errorState,
           details = s"Lagging events found in partition(s) ${partitions.toList.sorted.mkString(",")}")
       }
 
       HealthComponent(name = s"$topic: Servers exceeding age threshold",
-        state = ComponentState.CRITICAL,
+        state = errorState,
         details = s"Data from ${serverHealths.size} server(s) exceeded the age threshold",
         components = serverHealths.to[List]
       )
@@ -137,7 +137,7 @@ trait CoordinatorHealth { this: KafkaConsumerCoordinator =>
     var unHealthy = filteredHealths.filter { case (name, (state, age, topic)) => !state.healthy && notSchedDowntime(state.name) }
       .map { case (name, (state, age, topic)) =>
       HealthComponent(name = state.name,
-        state = ComponentState.CRITICAL,
+        state = errorState,
         details = state.status)
     }.toList
     val time = System.currentTimeMillis()
@@ -155,7 +155,7 @@ trait CoordinatorHealth { this: KafkaConsumerCoordinator =>
   def collapseHealthStates(healths: Map[String, WorkerHealthState], label: String): HealthComponent = {
     val unHealthy = healths.filterNot { h => h._2.healthy }.map { h: (String, WorkerHealthState) =>
       HealthComponent(name = h._2.name,
-        state = ComponentState.CRITICAL,
+        state = errorState,
         details = h._2.status)
     }.toList
     aggregatedComponent(healths.toMap, label, unHealthy)
