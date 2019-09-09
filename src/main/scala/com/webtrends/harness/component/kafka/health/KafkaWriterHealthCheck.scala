@@ -89,8 +89,11 @@ trait KafkaWriterHealthCheck { this: KafkaWriter =>
               case ex: Exception =>
                 log.error("Unable to produce data. Marking producer as unhealthy", ex)
                 setHealth(HealthComponent(self.path.name, errorState, ex.getMessage))
+                throw ex
             }
-            inProcessSend = None // Note that this may be executed in a different thread than the current message being processed
+            finally {
+              inProcessSend = None // Note that this may be executed in a different thread than the current message being processed
+            }
           }
         }(scala.concurrent.ExecutionContext.Implicits.global)
     }
