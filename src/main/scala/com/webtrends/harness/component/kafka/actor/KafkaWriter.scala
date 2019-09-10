@@ -114,18 +114,18 @@ class KafkaWriter(val healthParent: ActorRef) extends Actor
     val itr = messages.iterator
     while (itr.hasNext) {
       val kafkaMessage = itr.next()
-      if (kafkaMessage.data.length > 0) {
-        val message = keyedMessage(kafkaMessage)
+      val message = keyedMessage(kafkaMessage)
 
-        // If the Kafka target is down completely, the Kafka client provides no feedback.
-        // The callback is never called and a get on the returned java Future will block indefinitely.
-        // Handling this by waiting on the
-        val productionFuture = dataProducer.send(message)
-        monitorSendHealth(productionFuture)
+      // If the Kafka target is down completely, the Kafka client provides no feedback.
+      // The callback is never called and a get on the returned java Future will block indefinitely.
+      // Handling this in monitorSendHealth
+      val productionFuture = dataProducer.send(message)
+      monitorSendHealth(productionFuture)
 
+      totalEvents.mark(1)
+
+      if (kafkaMessage.data != null)
         totalBytesPerSecond.mark(kafkaMessage.data.length)
-        totalEvents.mark(1)
-      }
     }
   }
 
