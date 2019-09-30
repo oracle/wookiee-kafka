@@ -25,13 +25,14 @@ import com.webtrends.harness.component.kafka.util.{KafkaSettings, KafkaUtil}
 import com.webtrends.harness.component.metrics.metrictype.Meter
 import com.webtrends.harness.health.{ComponentState, HealthComponent}
 import com.webtrends.harness.logging.ActorLoggingAdapter
-import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
+import org.apache.kafka.clients.producer.{Callback, KafkaProducer, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.PartitionInfo
 import org.apache.kafka.common.utils.Utils
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable
-import scala.util.Try
+import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.util.{Failure, Success, Try}
 
 object KafkaWriter {
   case class KafkaMessage(topic: String,
@@ -43,7 +44,10 @@ object KafkaWriter {
 
   case class MessagesToWrite(messages: List[KafkaMessage])
 
-  case class MessagesToWriteWithAck(ackId: String, messages: KafkaMessage*)
+  case class MessagesToWriteWithAck(ackId: String, messages: KafkaMessage*)(implicit val ec: ExecutionContext)
+  private object MessagesToWriteWithAck {
+    def unapply(message: MessagesToWriteWithAck) = Some((message.ackId, message.messages, message.ec))
+  }
 
   case class MessageWriteAck(ackId: Either[String, SendFailureException])
 
@@ -77,26 +81,30 @@ class KafkaWriter(val healthParent: ActorRef) extends Actor
 
     case MessagesToWrite(messages) => sendData(messages)
 
-    case msgsWithAck: MessagesToWriteWithAck =>
-      sender() ! MessageWriteAck(sendData(msgsWithAck.messages, msgsWithAck.ackId))
+    case MessagesToWriteWithAck(ackId, messages, ec) =>
+      sendDataAck(messages, ackId, sender())(ec)
   }
 
-  def sendData(eventMessages: Seq[KafkaMessage], ackId: String = ""): Either[String, SendFailureException] = {
+  def sendData(eventMessages: Seq[KafkaMessage], ackId: String = ""): Unit =
     Try {
       sendMessages(eventMessages)
-
-      if (currentHealth.state == ComponentState.NORMAL) {
-        Left(ackId)
-      } else {
-        Right(SendFailureException(ackId, new IllegalStateException("Producer is not healthy")))
-      }
     } recover {
       case ex: Exception =>
         log.error(s"Unable To write Event, ackId=[$ackId]", ex)
         setHealth(HealthComponent(self.path.name, errorState, "Last message failed to send"))
-        Right(SendFailureException(ackId, ex))
-    } get
-  }
+    }
+
+  def sendDataAck(eventMessages: Seq[KafkaMessage], ackId: String, sender: ActorRef)(implicit ec: ExecutionContext): Unit =
+    sendMessagesAck(eventMessages) onComplete {
+      case _ if currentHealth.state != ComponentState.NORMAL =>
+        sender ! MessageWriteAck(Right(SendFailureException(ackId, new IllegalStateException("Producer is not healthy"))))
+      case Success(_) =>
+        sender ! MessageWriteAck(Left(ackId))
+      case Failure(ex: Exception) =>
+        log.error(s"Unable To write Event, ackId=[$ackId]", ex)
+        setHealth(HealthComponent(self.path.name, errorState, "Last message failed to send"))
+        sender ! MessageWriteAck(Right(SendFailureException(ackId, ex)))
+    }
 
   protected def keyedMessage(kafkaMessage: KafkaMessage): ProducerRecord[Array[Byte], Array[Byte]] = {
     val partition = kafkaMessage.partition.orNull match {
@@ -122,11 +130,27 @@ class KafkaWriter(val healthParent: ActorRef) extends Actor
       val productionFuture = dataProducer.send(message)
       monitorSendHealth(productionFuture)
 
-      totalEvents.mark(1)
-
-      if (kafkaMessage.data != null)
-        totalBytesPerSecond.mark(kafkaMessage.data.length)
+      updateMetrics(kafkaMessage)
     }
+  }
+
+  // This one relies on all messages to successfully write to kafka. Unlike sendMessages method which is
+  // entirely fire and forget, this one does not resolve until all messages have successfully written. Do not
+  // use this method if super fast performance is your only concern. Use for reliability and logging.
+  protected def sendMessagesAck(messages: Seq[KafkaMessage]): Future[Unit] =
+    Future.sequence(messages.map(m => {
+      val p = Promise[Unit]()
+      val message = keyedMessage(m)
+      dataProducer.send(message, new JavaCallback(p))
+      updateMetrics(m)
+      p.future
+    })
+
+  private def updateMetrics(message: KafkaMessage): Unit = {
+    totalEvents.mark(1)
+
+    if (message != null && message.data != null)
+      totalBytesPerSecond.mark(message.data.length)
   }
 
   private def getPartNum(topic: String): Int = {
@@ -138,4 +162,14 @@ class KafkaWriter(val healthParent: ActorRef) extends Actor
         parts.length
     }
   }
+}
+
+private class JavaCallback(p: Promise[Unit]) extends Callback {
+  override def onCompletion(metadata: RecordMetadata, exception: Exception): Unit =
+    (metadata, exception) match {
+      case (null, e: Exception) =>
+        p.failure(e)
+      case (_: RecordMetadata, null) =>
+        p.success()
+    }
 }
