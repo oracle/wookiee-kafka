@@ -5,12 +5,13 @@ import com.webtrends.harness.component.kafka.actor.KafkaWriter.{KafkaMessage, Me
 import com.webtrends.harness.component.kafka.config.KafkaTestConfig
 import com.webtrends.harness.component.kafka.health.ProducerHealth
 import com.webtrends.harness.health.{ComponentState, HealthComponent}
-import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.clients.producer.{MockProducer, ProducerRecord}
 import org.junit.runner.RunWith
 import org.specs2.mutable.SpecificationLike
 import org.specs2.runner.JUnitRunner
 
 import scala.concurrent.duration.{Duration, SECONDS}
+import scala.concurrent.ExecutionContext.Implicits.global
 
 case class TestRequest(kafkaMessage: KafkaMessage)
 case class TestResponse(producerRecord: ProducerRecord[Array[Byte], Array[Byte]])
@@ -31,7 +32,7 @@ class KafkaWriterTester(healthParent: ActorRef) extends KafkaWriter(healthParent
   }
 
   override def postStop() = {}
-  override def newProducer = null
+  override def newProducer = new MockProducer[Array[Byte], Array[Byte]](true, null, null, null)
   override def sendMessages(messages: Seq[KafkaMessage]) = {}
 }
 

@@ -25,7 +25,7 @@ import com.webtrends.harness.component.kafka.util.{KafkaSettings, KafkaUtil}
 import com.webtrends.harness.component.metrics.metrictype.Meter
 import com.webtrends.harness.health.{ComponentState, HealthComponent}
 import com.webtrends.harness.logging.ActorLoggingAdapter
-import org.apache.kafka.clients.producer.{Callback, KafkaProducer, ProducerRecord, RecordMetadata}
+import org.apache.kafka.clients.producer.{Callback, KafkaProducer, Producer, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.PartitionInfo
 import org.apache.kafka.common.utils.Utils
 
@@ -44,8 +44,11 @@ object KafkaWriter {
 
   case class MessagesToWrite(messages: List[KafkaMessage])
 
+  // This message class is a little odd with the implicit, this was done because this is the only
+  // message that ever requires an execution context so passing in as an actor prop didn't make sense
+  // if you were only going to send the other messages in your implementation.
   case class MessagesToWriteWithAck(ackId: String, messages: KafkaMessage*)(implicit val ec: ExecutionContext)
-  private object MessagesToWriteWithAck {
+  private object MessagesToWriteWithAckEC {
     def unapply(message: MessagesToWriteWithAck) = Some((message.ackId, message.messages, message.ec))
   }
 
@@ -68,7 +71,8 @@ class KafkaWriter(val healthParent: ActorRef) extends Actor
   val dataProducer = newProducer
   val topicPartsMeta = mutable.HashMap[String, List[PartitionInfo]]()
 
-  def newProducer = new KafkaProducer[Array[Byte], Array[Byte]](KafkaUtil.configToProps(kafkaConfig.getConfig("producer")))
+  def newProducer: Producer[Array[Byte], Array[Byte]] =
+    new KafkaProducer[Array[Byte], Array[Byte]](KafkaUtil.configToProps(kafkaConfig.getConfig("producer")))
 
   override def postStop() = {
     log.info("Stopping Kafka Writer")
@@ -81,7 +85,7 @@ class KafkaWriter(val healthParent: ActorRef) extends Actor
 
     case MessagesToWrite(messages) => sendData(messages)
 
-    case MessagesToWriteWithAck(ackId, messages, ec) =>
+    case MessagesToWriteWithAckEC(ackId, messages, ec) =>
       sendDataAck(messages, ackId, sender())(ec)
   }
 
@@ -137,14 +141,21 @@ class KafkaWriter(val healthParent: ActorRef) extends Actor
   // This one relies on all messages to successfully write to kafka. Unlike sendMessages method which is
   // entirely fire and forget, this one does not resolve until all messages have successfully written. Do not
   // use this method if super fast performance is your only concern. Use for reliability and logging.
-  protected def sendMessagesAck(messages: Seq[KafkaMessage]): Future[Unit] =
-    Future.sequence(messages.map(m => {
+  protected def sendMessagesAck(messages: Seq[KafkaMessage])(implicit ec: ExecutionContext): Future[Any] = {
+    val sendFutures = messages.map(m => {
       val p = Promise[Unit]()
-      val message = keyedMessage(m)
-      dataProducer.send(message, new JavaCallback(p))
-      updateMetrics(m)
+      Try {
+        val message = keyedMessage(m)
+        dataProducer.send(message, new JavaCallback(p))
+        updateMetrics(m)
+      } recover {
+        case e: Exception =>
+          p.failure(e)
+      }
       p.future
     })
+    Future.sequence(sendFutures)
+  }
 
   private def updateMetrics(message: KafkaMessage): Unit = {
     totalEvents.mark(1)
