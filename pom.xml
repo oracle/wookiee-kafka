@@ -70,10 +70,6 @@
 
     <repositories>
         <repository>
-            <id>Thirdparty Snap</id>
-            <url>https://artifactory.phx.corp.infinitycloud.io/artifactory/infy-release-local</url>
-        </repository>
-        <repository>
             <id>JFrog</id>
             <url>http://oss.jfrog.org/oss-release-local</url>
         </repository>
